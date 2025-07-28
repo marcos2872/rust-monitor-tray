@@ -11,8 +11,8 @@ use sysinfo::System;
 
 struct SystemStats {
     cpu_usage: f32,
-    ram_usage: f32,
-    ram_total: f64,
+    // ram_usage: f32,
+    // ram_total: f64,
     ram_used: f64,
 }
 
@@ -25,14 +25,14 @@ fn get_system_stats() -> SystemStats {
     sys.refresh_cpu_all();
 
     let cpu_usage = sys.global_cpu_usage();
-    let total_memory = sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0; // GB
+    // let total_memory = sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0; // GB
     let used_memory = sys.used_memory() as f64 / 1024.0 / 1024.0 / 1024.0; // GB
-    let ram_usage = (used_memory / total_memory * 100.0) as f32;
+                                                                           // let ram_usage = (used_memory / total_memory * 100.0) as f32;
 
     SystemStats {
         cpu_usage,
-        ram_usage,
-        ram_total: total_memory,
+        // ram_usage,
+        // ram_total: total_memory,
         ram_used: used_memory,
     }
 }
@@ -40,24 +40,21 @@ fn get_system_stats() -> SystemStats {
 fn create_text_icon(stats: &SystemStats) -> Result<String, Box<dyn std::error::Error>> {
     use std::io::Write;
 
-    let text_color = if stats.cpu_usage < 50.0 {
-        "#00FF00" // Green
-    } else if stats.cpu_usage < 80.0 {
-        "#FFFF00" // Yellow
-    } else {
-        "#FF0000" // Red
-    };
-
-    // Create SVG with text showing CPU percentage and RAM in GB
+    // Create SVG with the specified format
     let svg_content = format!(
-        r#"<?xml version="1.0" encoding="UTF-8"?>
-<svg width="140" height="24" xmlns="http://www.w3.org/2000/svg">
-  <rect width="140" height="24" fill="transparent"/>
-  <text x="70" y="16" text-anchor="middle" font-family="monospace" font-size="12" fill="{}" font-weight="bold">
-    CPU:{:.0}% RAM:{:.1}GB
-  </text>
-</svg>"#,
-        text_color, stats.cpu_usage, stats.ram_used
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+<svg width=\"98\" height=\"32\" xmlns=\"http://www.w3.org/2000/svg\">\
+        <rect width=\"100%\" height=\"100%\" fill=\"transparent\" />\
+          <text x=\"5\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">C</text>\
+          <text x=\"13\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">P</text>\
+          <text x=\"21\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">U</text>\
+          <text x=\"5\" y=\"22\" font-family=\"monospace\" font-size=\"14px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}%</text>\
+          <text x=\"54\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">R</text>\
+          <text x=\"62\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">A</text>\
+          <text x=\"70\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">M</text>\
+          <text x=\"54\" y=\"22\" font-family=\"monospace\" font-size=\"14px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.1}gb</text>\
+        </svg>",
+        stats.cpu_usage, stats.ram_used
     );
 
     // Use timestamp to ensure unique file for each update
@@ -92,7 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Get initial stats
         let stats = get_system_stats();
-        println!("CPU: {:.1}%, RAM: {:.1}%", stats.cpu_usage, stats.ram_usage);
+        // println!("CPU: {:.1}%, RAM: {:.1}%", stats.cpu_usage, stats.ram_usage);
 
         // Create text icon file
         let icon_path = match create_text_icon(&stats) {
@@ -112,12 +109,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Create menu
         let mut menu = gtk::Menu::new();
 
-        let stats_item = gtk::MenuItem::with_label(&format!(
-            "CPU: {:.1}% | RAM: {:.1}GB/{:.1}GB",
-            stats.cpu_usage, stats.ram_used, stats.ram_total
-        ));
-        stats_item.set_sensitive(false);
-        menu.append(&stats_item);
+        // let stats_item = gtk::MenuItem::with_label(&format!(
+        //     "CPU: {:.1}% | RAM: {:.1}GB/{:.1}GB",
+        //     stats.cpu_usage, stats.ram_used, stats.ram_total
+        // ));
+        // stats_item.set_sensitive(false);
+        // menu.append(&stats_item);
 
         let separator = gtk::SeparatorMenuItem::new();
         menu.append(&separator);
@@ -151,7 +148,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Update UI periodically
         let indicator_rc = Rc::new(RefCell::new(indicator));
-        let stats_item_rc = Rc::new(RefCell::new(stats_item));
+        // let stats_item_rc = Rc::new(RefCell::new(stats_item));
 
         glib::timeout_add_local(Duration::from_millis(50), move || {
             if let Ok(stats) = rx.try_recv() {
@@ -163,16 +160,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     indicator.set_status(AppIndicatorStatus::Active);
                 }
 
-                // Update menu item
-                stats_item_rc.borrow().set_label(&format!(
-                    "CPU: {:.1}% | RAM: {:.1}GB/{:.1}GB ({:.1}%)",
-                    stats.cpu_usage, stats.ram_used, stats.ram_total, stats.ram_usage
-                ));
+                // // Update menu item
+                // stats_item_rc.borrow().set_label(&format!(
+                //     "CPU: {:.1}% | RAM: {:.1}GB/{:.1}GB ({:.1}%)",
+                //     stats.cpu_usage, stats.ram_used, stats.ram_total, stats.ram_usage
+                // ));
 
-                println!(
-                    "Atualizado - CPU: {:.1}%, RAM: {:.1}%",
-                    stats.cpu_usage, stats.ram_usage
-                );
+                // println!(
+                //     "Atualizado - CPU: {:.1}%, RAM: {:.1}%",
+                //     stats.cpu_usage, stats.ram_usage
+                // );
             }
             glib::ControlFlow::Continue
         });
