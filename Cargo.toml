@@ -1,0 +1,10 @@
+[package]
+name = "monitor-tray"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+libappindicator = "0.9"
+sysinfo = "0.32"
+gtk = "0.18"
+glib = "0.18"
