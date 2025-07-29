@@ -10,4 +10,3 @@ Type=Application
 Categories=System;Monitor;Utility;
 Keywords=system;monitor;cpu;ram;memory;tray;indicator;
 StartupNotify=false
-StartupWMClass=monitor-tray

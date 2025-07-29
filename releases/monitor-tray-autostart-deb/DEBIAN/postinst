@@ -1,0 +1,20 @@
+#!/bin/bash
+set -e
+
+# Atualizar cache de desktop entries
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database -q /usr/share/applications
+fi
+
+# Informar usuário sobre autostart
+echo "Monitor Tray instalado com sucesso!"
+echo ""
+echo "O aplicativo foi configurado para iniciar automaticamente."
+echo "Para desabilitar o autostart:"
+echo "  - GNOME: Settings > Applications > Startup Applications"
+echo "  - KDE: System Settings > Startup and Shutdown > Autostart"
+echo "  - Ou remova: ~/.config/autostart/monitor-tray.desktop"
+echo ""
+echo "Para iniciar agora: monitor-tray"
+
+exit 0

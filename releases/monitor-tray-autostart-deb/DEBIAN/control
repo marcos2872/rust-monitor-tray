@@ -9,7 +9,4 @@ Description: System Monitor Tray Application
  A lightweight system tray application that displays real-time CPU and RAM usage.
  Features dynamic color-coded text display and updates every 500ms.
  Compatible with Unity, GNOME, and other desktop environments that support
- system tray indicators.
- .
- This version does not include automatic startup - launch manually or configure
- autostart through your desktop environment's settings.
+ system tray indicators. Includes automatic startup configuration.

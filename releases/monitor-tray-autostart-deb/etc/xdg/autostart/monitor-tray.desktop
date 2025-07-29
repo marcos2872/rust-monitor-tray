@@ -1,4 +1,5 @@
 [Desktop Entry]
+Type=Application
 Name=Monitor Tray
 Name[pt_BR]=Monitor da Bandeja
 Comment=System monitor with CPU and RAM display in system tray
@@ -6,8 +7,10 @@ Comment[pt_BR]=Monitor de sistema com exibição de CPU e RAM na bandeja do sist
 Exec=/usr/bin/monitor-tray
 Icon=utilities-system-monitor
 Terminal=false
-Type=Application
-Categories=System;Monitor;Utility;
-Keywords=system;monitor;cpu;ram;memory;tray;indicator;
+Categories=System;Monitor;
 StartupNotify=false
-StartupWMClass=monitor-tray
+Hidden=false
+X-GNOME-Autostart-enabled=true
+X-GNOME-Autostart-Delay=3
+X-KDE-autostart-after=panel
+NoDisplay=false

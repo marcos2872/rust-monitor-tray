@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+# Atualizar cache de desktop entries
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database -q /usr/share/applications
+fi
+
+# Remover arquivos temporários se existirem
+rm -f /tmp/monitor_text_icon*.svg 2>/dev/null || true
+
+echo "📦 Monitor Tray removido com sucesso!"
+
+exit 0

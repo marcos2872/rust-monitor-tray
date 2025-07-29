@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+# Parar aplicação se estiver rodando
+if pgrep -x "monitor-tray" > /dev/null; then
+    echo "Parando Monitor Tray..."
+    pkill -x "monitor-tray" || true
+fi
+
+exit 0

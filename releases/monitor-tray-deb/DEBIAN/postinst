@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+# Atualizar cache de desktop entries
+if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database -q /usr/share/applications
+fi
+
+echo "✅ Monitor Tray instalado com sucesso!"
+echo ""
+echo "📍 Como usar:"
+echo "  • Executar: monitor-tray (ou procure 'Monitor Tray' no menu)"
+echo "  • Para finalizar: clique com botão direito no ícone → Sair"
+echo ""
+echo "🚀 Para configurar inicialização automática:"
+echo "  • GNOME: Configurações → Aplicações → Aplicações de Inicialização"
+echo "  • KDE: Configurações do Sistema → Inicialização → Autostart"
+echo "  • XFCE: Configurações → Sessão e Inicialização → Autostart"
+echo "  • Comando: monitor-tray"
+echo ""
+
+exit 0

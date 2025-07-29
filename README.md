@@ -104,59 +104,36 @@ cargo build --release
 # ./target/release/monitor-tray
 ```
 
-### Gerar pacote .deb
+### Gerar pacote com autostart .deb
 
 ```bash
-# 1. Fazer build de release
-cargo build --release
+# 1. Dar permissão ao script de build
+chmod +x build-autostart.sh
 
-# 2. Criar estrutura do pacote
-mkdir -p monitor-tray-deb/DEBIAN
-mkdir -p monitor-tray-deb/usr/bin
-mkdir -p monitor-tray-deb/usr/share/applications
-
-# 3. Copiar arquivos
-cp target/release/monitor-tray releases/monitor-tray-deb/usr/bin/
-
-# 4. Criar arquivo de controle
-cat > releases/monitor-tray-deb/DEBIAN/control << EOF
-Package: monitor-tray
-Version: 0.1.0
-Section: utils
-Priority: optional
-Architecture: amd64
-Depends: libgtk-3-0, libglib2.0-0, libappindicator3-1
-Maintainer: Marcos <marcos@example.com>
-Description: System Monitor Tray Application
- A lightweight system tray application that displays real-time CPU and RAM usage.
- Features dynamic color-coded text display and updates every 500ms.
- Compatible with Unity, GNOME, and other desktop environments that support
- system tray indicators.
-
-EOF
-
-# 5. Criar desktop entry
-cat > releases/monitor-tray-deb/usr/share/applications/monitor-tray.desktop << EOF
-[Desktop Entry]
-Name=Monitor Tray
-Comment=System monitor with CPU and RAM display in system tray
-Exec=/usr/bin/monitor-tray
-Icon=utilities-system-monitor
-Terminal=false
-Type=Application
-Categories=System;Monitor;
-StartupNotify=false
-X-GNOME-Autostart-enabled=true
-EOF
-
-# 6. Definir permissões
-chmod 755 releases/monitor-tray-deb/usr/bin/monitor-tray
-chmod 644 releases/monitor-tray-deb/usr/share/applications/monitor-tray.desktop
-
-# 7. Gerar o pacote .deb
-dpkg-deb --build releases/monitor-tray-deb
+# 2. Executar o script de build
+./build-autostart.sh
 
 # O arquivo monitor-tray-deb.deb será criado
+
+# 3, Instale o pacote:
+sudo dpkg -i sudo dpkg -i releases/monitor-tray-autostart-deb.deb
+sudo apt-get install -f  # instala dependências se necessário
+```
+
+### Gerar pacote sem autostart .deb
+
+```bash
+# 1. Dar permissão ao script de build
+chmod +x build.sh
+
+# 2. Executar o script de build
+./build.sh
+
+# O arquivo monitor-tray-deb.deb será criado
+
+# 3, Instale o pacote:
+sudo dpkg -i sudo dpkg -i releases/monitor-tray-deb.deb
+sudo apt-get install -f  # instala dependências se necessário
 ```
 
 ### Estrutura do projeto
