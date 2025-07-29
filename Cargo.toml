@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+serde = { version = "1.0.219", features = ["derive"] }
 libappindicator = "0.9"
 sysinfo = "0.32"
 gtk = "0.18"
 glib = "0.18"
+serde_json = "1.0.141"
+tokio = { version = "1.47.0", features = ["full"] }
+time = "0.3.41"

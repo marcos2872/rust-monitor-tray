@@ -1,14 +1,18 @@
+mod monitor;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+// use tokio::time;
 
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow};
 use libappindicator::{AppIndicator, AppIndicatorStatus};
 use std::sync::atomic::{AtomicBool, Ordering};
-use sysinfo::System;
+
+use crate::monitor::{SystemMetrics, SystemMonitor};
 
 struct IconCache {
     last_cpu: Option<u32>,
@@ -16,50 +20,36 @@ struct IconCache {
     current_path: Option<String>,
 }
 static FILE_TOGGLE: AtomicBool = AtomicBool::new(false);
-struct SystemStats {
-    cpu_usage: f32,
-    ram_usage: f32,
-    // ram_total: f64,
-    ram_used: f64,
-}
+// struct SystemStats {
+//     cpu_usage: f32,
+//     ram_usage: f32,
+//     // ram_total: f64,
+//     ram_used: f64,
+// }
 
-fn get_system_stats() -> SystemStats {
-    let mut sys = System::new_all();
-    sys.refresh_all();
+// async fn get_system_stats() -> Result<SystemMetrics, String> {
+//     let mut monitor = SystemMonitor::new();
+//     monitor.update_metrics().await;
+//     let t = monitor.get_all_metrics();
+//     Ok(t)
+// }
 
-    // Wait a bit and refresh again to get accurate CPU readings
-    std::thread::sleep(Duration::from_millis(200));
-    sys.refresh_cpu_all();
-
-    let cpu_usage = sys.global_cpu_usage();
-    let total_memory = sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0; // GB
-    let used_memory = sys.used_memory() as f64 / 1024.0 / 1024.0 / 1024.0; // GB
-    let ram_usage = (used_memory / total_memory * 100.0) as f32;
-
-    SystemStats {
-        cpu_usage,
-        ram_usage,
-        // ram_total: total_memory,
-        ram_used: used_memory,
-    }
-}
-
-fn create_text_icon(stats: &SystemStats) -> Result<String, Box<dyn std::error::Error>> {
+fn create_text_icon(stats: &SystemMetrics) -> Result<String, Box<dyn std::error::Error>> {
     use std::io::Write;
 
     // Determine CPU color based on usage
-    let cpu_color = if stats.cpu_usage < 50.0 {
+    let cpu_color = if stats.cpu.usage_percent < 50.0 {
         "#ffffff" // White for low usage
-    } else if stats.cpu_usage < 80.0 {
+    } else if stats.cpu.usage_percent < 80.0 {
         "#ffff00" // Yellow for medium usage
     } else {
         "#ff0000" // Red for high usage
     };
 
     // Determine RAM color based on actual usage percentage
-    let ram_color = if stats.ram_usage < 50.0 {
+    let ram_color = if stats.memory.usage_percent < 50.0 {
         "#ffffff" // White for low usage
-    } else if stats.ram_usage < 80.0 {
+    } else if stats.memory.usage_percent < 80.0 {
         "#ffff00" // Yellow for medium usage
     } else {
         "#ff0000" // Red for high usage
@@ -75,7 +65,7 @@ fn create_text_icon(stats: &SystemStats) -> Result<String, Box<dyn std::error::E
           <text x=\"54\" y=\"13\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">RAM</text>\
           <text x=\"54\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"{}\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.1}gb</text>\
         </svg>",
-        cpu_color, stats.cpu_usage, ram_color, stats.ram_used
+        cpu_color, stats.cpu.usage_percent, ram_color, stats.memory.used_memory
     );
 
     let current_file = FILE_TOGGLE.fetch_xor(true, Ordering::Relaxed);
@@ -100,9 +90,12 @@ impl IconCache {
         }
     }
 
-    fn get_icon_path(&mut self, stats: &SystemStats) -> Result<String, Box<dyn std::error::Error>> {
-        let cpu_rounded = stats.cpu_usage.round() as u32;
-        let ram_rounded = (stats.ram_used * 10.0).round() as u32; // 1 decimal place
+    fn get_icon_path(
+        &mut self,
+        stats: &SystemMetrics,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let cpu_rounded = stats.cpu.usage_percent.round() as u32;
+        let ram_rounded = stats.memory.used_memory as u32; // 1 decimal place
 
         // Check if we need to update
         let needs_update = self.last_cpu != Some(cpu_rounded)
@@ -121,6 +114,12 @@ impl IconCache {
     }
 }
 
+async fn collect_metrics() -> SystemMetrics {
+    let mut monitor = SystemMonitor::new();
+    monitor.update_metrics().await;
+    monitor.get_all_metrics()
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Application::builder()
         .application_id("com.monitor.tray")
@@ -135,8 +134,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .visible(false)
             .build();
 
-        // Get initial stats
-        let stats = get_system_stats();
+        let rt = std::thread::spawn(|| {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(collect_metrics())
+        })
+        .join()
+        .unwrap();
+
+        let stats = rt;
+        println!("Ge {:?}", stats.disk.disks);
 
         // Create text icon file
         let icon_path = match create_text_icon(&stats) {
@@ -156,6 +162,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Create menu
         let mut menu = gtk::Menu::new();
 
+        let separator3 = gtk::SeparatorMenuItem::new();
+        menu.append(&separator3);
+
         let separator = gtk::SeparatorMenuItem::new();
         menu.append(&separator);
 
@@ -174,13 +183,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Setup update timer
         let (tx, rx) = mpsc::channel();
 
-        // Stats monitoring thread
-        thread::spawn(move || loop {
-            let stats = get_system_stats();
-            if tx.send(stats).is_err() {
-                break;
+        // Stats monitoring thread - com runtime próprio
+        thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+
+            loop {
+                let stats = rt.block_on(collect_metrics());
+
+                if tx.send(stats).is_err() {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(500));
             }
-            thread::sleep(Duration::from_millis(500));
         });
 
         // Update UI periodically
