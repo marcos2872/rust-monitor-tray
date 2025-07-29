@@ -11,8 +11,8 @@ use sysinfo::System;
 
 struct SystemStats {
     cpu_usage: f32,
-    // ram_usage: f32,
-    // ram_total: f64,
+    ram_usage: f32,
+    ram_total: f64,
     ram_used: f64,
 }
 
@@ -25,14 +25,14 @@ fn get_system_stats() -> SystemStats {
     sys.refresh_cpu_all();
 
     let cpu_usage = sys.global_cpu_usage();
-    // let total_memory = sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0; // GB
+    let total_memory = sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0; // GB
     let used_memory = sys.used_memory() as f64 / 1024.0 / 1024.0 / 1024.0; // GB
-                                                                           // let ram_usage = (used_memory / total_memory * 100.0) as f32;
+    let ram_usage = (used_memory / total_memory * 100.0) as f32;
 
     SystemStats {
         cpu_usage,
-        // ram_usage,
-        // ram_total: total_memory,
+        ram_usage,
+        ram_total: total_memory,
         ram_used: used_memory,
     }
 }
@@ -40,17 +40,35 @@ fn get_system_stats() -> SystemStats {
 fn create_text_icon(stats: &SystemStats) -> Result<String, Box<dyn std::error::Error>> {
     use std::io::Write;
 
+    // Determine CPU color based on usage
+    let cpu_color = if stats.cpu_usage < 50.0 {
+        "#ffffff" // White for low usage
+    } else if stats.cpu_usage < 80.0 {
+        "#ffff00" // Yellow for medium usage
+    } else {
+        "#ff0000" // Red for high usage
+    };
+
+    // Determine RAM color based on actual usage percentage
+    let ram_color = if stats.ram_usage < 50.0 {
+        "#ffffff" // White for low usage
+    } else if stats.ram_usage < 80.0 {
+        "#ffff00" // Yellow for medium usage
+    } else {
+        "#ff0000" // Red for high usage
+    };
+
     // Create SVG with the specified format
     let svg_content = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
 <svg width=\"98\" height=\"32\" xmlns=\"http://www.w3.org/2000/svg\">\
         <rect width=\"100%\" height=\"100%\" fill=\"transparent\" />\
-          <text x=\"5\" y=\"13\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">CPU</text>\
-          <text x=\"5\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}%</text>\
-          <text x=\"54\" y=\"13\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">RAM</text>\
-          <text x=\"54\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}gb</text>\
+          <text x=\"5\" y=\"13\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">CPU</text>\
+          <text x=\"5\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"{}\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}%</text>\
+          <text x=\"54\" y=\"13\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">RAM</text>\
+          <text x=\"54\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"{}\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}gb</text>\
         </svg>",
-        stats.cpu_usage, stats.ram_used
+        cpu_color, stats.cpu_usage, ram_color, stats.ram_used
     );
 
     // Use timestamp to ensure unique file for each update
