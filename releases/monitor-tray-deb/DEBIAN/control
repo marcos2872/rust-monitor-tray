@@ -1,0 +1,12 @@
+Package: monitor-tray
+Version: 0.1.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libgtk-3-0, libglib2.0-0, libappindicator3-1
+Maintainer: Marcos <marcos@example.com>
+Description: System Monitor Tray Application
+ A lightweight system tray application that displays real-time CPU and RAM usage.
+ Features dynamic color-coded text display and updates every 500ms.
+ Compatible with Unity, GNOME, and other desktop environments that support
+ system tray indicators.

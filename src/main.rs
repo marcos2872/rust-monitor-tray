@@ -61,12 +61,12 @@ fn create_text_icon(stats: &SystemStats) -> Result<String, Box<dyn std::error::E
     // Create SVG with the specified format
     let svg_content = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
-<svg width=\"98\" height=\"32\" xmlns=\"http://www.w3.org/2000/svg\">\
+<svg width=\"120\" height=\"32\" xmlns=\"http://www.w3.org/2000/svg\">\
         <rect width=\"100%\" height=\"100%\" fill=\"transparent\" />\
           <text x=\"5\" y=\"13\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">CPU</text>\
           <text x=\"5\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"{}\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}%</text>\
           <text x=\"54\" y=\"13\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">RAM</text>\
-          <text x=\"54\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"{}\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}gb</text>\
+          <text x=\"54\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"{}\" font-weight=\"bold\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.1}gb</text>\
         </svg>",
         cpu_color, stats.cpu_usage, ram_color, stats.ram_used
     );
