@@ -12,7 +12,7 @@ use sysinfo::System;
 struct SystemStats {
     cpu_usage: f32,
     ram_usage: f32,
-    ram_total: f64,
+    // ram_total: f64,
     ram_used: f64,
 }
 
@@ -32,7 +32,7 @@ fn get_system_stats() -> SystemStats {
     SystemStats {
         cpu_usage,
         ram_usage,
-        ram_total: total_memory,
+        // ram_total: total_memory,
         ram_used: used_memory,
     }
 }
@@ -84,17 +84,13 @@ fn create_text_icon(stats: &SystemStats) -> Result<String, Box<dyn std::error::E
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Iniciando monitor de sistema...");
-
     let app = Application::builder()
         .application_id("com.monitor.tray")
         .build();
 
     app.connect_activate(|app| {
-        println!("Aplicação ativada");
-
         // Create a hidden window (required for some desktop environments)
-        let window = ApplicationWindow::builder()
+        let _window = ApplicationWindow::builder()
             .application(app)
             .default_width(1)
             .default_height(1)
@@ -103,7 +99,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Get initial stats
         let stats = get_system_stats();
-        // println!("CPU: {:.1}%, RAM: {:.1}%", stats.cpu_usage, stats.ram_usage);
 
         // Create text icon file
         let icon_path = match create_text_icon(&stats) {
@@ -123,13 +118,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Create menu
         let mut menu = gtk::Menu::new();
 
-        // let stats_item = gtk::MenuItem::with_label(&format!(
-        //     "CPU: {:.1}% | RAM: {:.1}GB/{:.1}GB",
-        //     stats.cpu_usage, stats.ram_used, stats.ram_total
-        // ));
-        // stats_item.set_sensitive(false);
-        // menu.append(&stats_item);
-
         let separator = gtk::SeparatorMenuItem::new();
         menu.append(&separator);
 
@@ -139,14 +127,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Connect quit action
         let app_clone = app.clone();
         quit_item.connect_activate(move |_| {
-            println!("Saindo...");
             app_clone.quit();
         });
 
         menu.show_all();
         indicator.set_menu(&mut menu);
-
-        println!("Indicador criado com sucesso!");
 
         // Setup update timer
         let (tx, rx) = mpsc::channel();
@@ -162,7 +147,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Update UI periodically
         let indicator_rc = Rc::new(RefCell::new(indicator));
-        // let stats_item_rc = Rc::new(RefCell::new(stats_item));
 
         glib::timeout_add_local(Duration::from_millis(50), move || {
             if let Ok(stats) = rx.try_recv() {
@@ -173,25 +157,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Force refresh by setting status
                     indicator.set_status(AppIndicatorStatus::Active);
                 }
-
-                // // Update menu item
-                // stats_item_rc.borrow().set_label(&format!(
-                //     "CPU: {:.1}% | RAM: {:.1}GB/{:.1}GB ({:.1}%)",
-                //     stats.cpu_usage, stats.ram_used, stats.ram_total, stats.ram_usage
-                // ));
-
-                // println!(
-                //     "Atualizado - CPU: {:.1}%, RAM: {:.1}%",
-                //     stats.cpu_usage, stats.ram_usage
-                // );
             }
             glib::ControlFlow::Continue
         });
 
-        window.present();
+        // window.present();
     });
-
-    println!("Executando aplicação...");
     app.run();
 
     Ok(())
