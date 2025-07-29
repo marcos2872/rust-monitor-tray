@@ -7,8 +7,15 @@ use std::time::Duration;
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow};
 use libappindicator::{AppIndicator, AppIndicatorStatus};
+use std::sync::atomic::{AtomicBool, Ordering};
 use sysinfo::System;
 
+struct IconCache {
+    last_cpu: Option<u32>,
+    last_ram: Option<u32>,
+    current_path: Option<String>,
+}
+static FILE_TOGGLE: AtomicBool = AtomicBool::new(false);
 struct SystemStats {
     cpu_usage: f32,
     ram_usage: f32,
@@ -71,16 +78,47 @@ fn create_text_icon(stats: &SystemStats) -> Result<String, Box<dyn std::error::E
         cpu_color, stats.cpu_usage, ram_color, stats.ram_used
     );
 
-    // Use timestamp to ensure unique file for each update
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let temp_path = format!("/tmp/monitor_text_icon_{}.svg", timestamp);
-    let mut file = std::fs::File::create(&temp_path)?;
-    file.write_all(svg_content.as_bytes())?;
+    let current_file = FILE_TOGGLE.fetch_xor(true, Ordering::Relaxed);
+    let temp_path = if current_file {
+        "/tmp/monitor_text_icon_a.svg"
+    } else {
+        "/tmp/monitor_text_icon_b.svg"
+    };
 
-    Ok(temp_path)
+    let mut file = std::fs::File::create(temp_path)?;
+    file.write_all(svg_content.as_bytes())?;
+    file.flush()?;
+    Ok(temp_path.to_string())
+}
+
+impl IconCache {
+    fn new() -> Self {
+        IconCache {
+            last_cpu: None,
+            last_ram: None,
+            current_path: None,
+        }
+    }
+
+    fn get_icon_path(&mut self, stats: &SystemStats) -> Result<String, Box<dyn std::error::Error>> {
+        let cpu_rounded = stats.cpu_usage.round() as u32;
+        let ram_rounded = (stats.ram_used * 10.0).round() as u32; // 1 decimal place
+
+        // Check if we need to update
+        let needs_update = self.last_cpu != Some(cpu_rounded)
+            || self.last_ram != Some(ram_rounded)
+            || self.current_path.is_none();
+
+        if needs_update {
+            // Generate new icon
+            let path = create_text_icon(stats)?;
+            self.last_cpu = Some(cpu_rounded);
+            self.last_ram = Some(ram_rounded);
+            self.current_path = Some(path);
+        }
+
+        Ok(self.current_path.as_ref().unwrap().clone())
+    }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -148,10 +186,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Update UI periodically
         let indicator_rc = Rc::new(RefCell::new(indicator));
 
+        let icon_cache = Rc::new(RefCell::new(IconCache::new()));
+
         glib::timeout_add_local(Duration::from_millis(50), move || {
             if let Ok(stats) = rx.try_recv() {
                 // Update text icon
-                if let Ok(icon_path) = create_text_icon(&stats) {
+                if let Ok(icon_path) = icon_cache.borrow_mut().get_icon_path(&stats) {
                     let mut indicator = indicator_rc.borrow_mut();
                     indicator.set_icon_full(&icon_path, "system-monitor");
                     // Force refresh by setting status
