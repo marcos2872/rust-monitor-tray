@@ -20,19 +20,6 @@ struct IconCache {
     current_path: Option<String>,
 }
 static FILE_TOGGLE: AtomicBool = AtomicBool::new(false);
-// struct SystemStats {
-//     cpu_usage: f32,
-//     ram_usage: f32,
-//     // ram_total: f64,
-//     ram_used: f64,
-// }
-
-// async fn get_system_stats() -> Result<SystemMetrics, String> {
-//     let mut monitor = SystemMonitor::new();
-//     monitor.update_metrics().await;
-//     let t = monitor.get_all_metrics();
-//     Ok(t)
-// }
 
 fn create_text_icon(stats: &SystemMetrics) -> Result<String, Box<dyn std::error::Error>> {
     use std::io::Write;
@@ -161,6 +148,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Create menu
         let mut menu = gtk::Menu::new();
+
+        // === INFORMAÇÕES DA CPU ===
+        let cpu_title = gtk::MenuItem::with_label("=== PROCESSADOR ===");
+        cpu_title.set_sensitive(false);
+        menu.append(&cpu_title);
+
+        let cpu_model_item = gtk::MenuItem::with_label(&format!("Modelo: {}", stats.cpu.name));
+        cpu_model_item.set_sensitive(false);
+        menu.append(&cpu_model_item);
+
+        let cpu_cores_item = gtk::MenuItem::with_label(&format!("Cores: {}", stats.cpu.core_count));
+        cpu_cores_item.set_sensitive(false);
+        menu.append(&cpu_cores_item);
+
+        let cpu_freq_item =
+            gtk::MenuItem::with_label(&format!("Freq. Máx: {}", stats.cpu.frequency));
+        cpu_freq_item.set_sensitive(false);
+        menu.append(&cpu_freq_item);
+
+        let separator2 = gtk::SeparatorMenuItem::new();
+        menu.append(&separator2);
 
         let separator3 = gtk::SeparatorMenuItem::new();
         menu.append(&separator3);
