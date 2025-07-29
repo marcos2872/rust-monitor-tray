@@ -45,14 +45,10 @@ fn create_text_icon(stats: &SystemStats) -> Result<String, Box<dyn std::error::E
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
 <svg width=\"98\" height=\"32\" xmlns=\"http://www.w3.org/2000/svg\">\
         <rect width=\"100%\" height=\"100%\" fill=\"transparent\" />\
-          <text x=\"5\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">C</text>\
-          <text x=\"13\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">P</text>\
-          <text x=\"21\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">U</text>\
-          <text x=\"5\" y=\"22\" font-family=\"monospace\" font-size=\"14px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}%</text>\
-          <text x=\"54\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">R</text>\
-          <text x=\"62\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">A</text>\
-          <text x=\"70\" y=\"9\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">M</text>\
-          <text x=\"54\" y=\"22\" font-family=\"monospace\" font-size=\"14px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.1}gb</text>\
+          <text x=\"5\" y=\"13\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">CPU</text>\
+          <text x=\"5\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}%</text>\
+          <text x=\"54\" y=\"13\" font-family=\"monospace\" font-size=\"12px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">RAM</text>\
+          <text x=\"54\" y=\"27\" font-family=\"monospace\" font-size=\"14px\" fill=\"#ffffff\" text-anchor=\"start\" dominant-baseline=\"middle\">{:.0}gb</text>\
         </svg>",
         stats.cpu_usage, stats.ram_used
     );
