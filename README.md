@@ -1,29 +1,51 @@
 # Monitor Tray
 
-Um aplicativo leve de monitoramento de sistema que exibe o uso de CPU e RAM em tempo real na system tray (bandeja do sistema). Desenvolvido em Rust para máxima performance e baixo consumo de recursos.
+Um aplicativo completo de monitoramento de sistema que exibe informações detalhadas em tempo real na system tray (bandeja do sistema). Desenvolvido em Rust para máxima performance e baixo consumo de recursos.
 
 ## 📋 Características
 
-- ✅ **Monitoramento em tempo real** - CPU e RAM atualizados a cada 500ms
-- ✅ **Interface visual dinâmica** - Cores que mudam baseadas no uso do sistema:
-  - 🟢 **Branco**: Uso baixo (< 50%)
+- ✅ **Monitoramento completo em tempo real** - Atualizações a cada 50ms
+- ✅ **Interface visual dinâmica** com gráficos de barra coloridos:
+  - 🟢 **Verde**: Uso baixo (< 50%)
   - 🟡 **Amarelo**: Uso médio (50-80%)
   - 🔴 **Vermelho**: Uso alto (> 80%)
-- ✅ **Font bold** para melhor legibilidade
+- ✅ **Menu contextual completo** com informações detalhadas do sistema
+- ✅ **Gráficos de barra visuais** para CPU e memória
+- ✅ **Informações completas**:
+  - **CPU**: Modelo, cores, frequência, uso com gráfico, load average
+  - **Memória**: Total, usada, disponível, SWAP com porcentagens
+  - **Armazenamento**: Espaço total, usado, disponível por disco
+  - **Rede**: Tráfego RX/TX total e por interface
+  - **Sistema**: Uptime formatado
 - ✅ **Sistema tray nativo** - Integração perfeita com o desktop
-- ✅ **Menu contextual** com opção de sair
+- ✅ **Atualização sem piscar** - Interface fluida e responsiva
 - ✅ **Compatibilidade ampla** - Unity, GNOME, KDE e outros ambientes desktop Linux
 - ✅ **Baixo consumo de recursos** - Escrito em Rust para máxima eficiência
 
 ## 🖥️ Interface
 
-O aplicativo exibe na system tray:
-```
-CPU  RAM
-15%  8.2gb
-```
+### Ícone da System Tray
+![Tray Icon](assets/tray.png)
 
-As cores dos valores mudam dinamicamente conforme o uso do sistema.
+O aplicativo exibe na system tray as informações de CPU e RAM com cores dinâmicas baseadas no uso.
+
+### Menu Completo do Sistema
+![Menu System Info](assets/menu.png)
+
+Menu contextual detalhado com:
+- **Processador**: Modelo, gráfico de uso em tempo real, load average
+- **Memória**: Informações de RAM e SWAP com gráficos visuais
+- **Armazenamento**: Espaço total e detalhes por disco/partição  
+- **Rede**: Tráfego de dados por interface
+- **Sistema**: Tempo de atividade (uptime)
+
+### Gráficos de Barra Visuais
+Os gráficos de barra usam caracteres Unicode para uma visualização clara:
+- **🟢 [||||||||||||--------]** - Uso baixo (verde)
+- **🟡 [|||||||||||||||||---]** - Uso médio (amarelo)  
+- **🔴 [||||||||||||||||||||]** - Uso alto (vermelho)
+
+As barras são atualizadas em tempo real (50ms) sem piscar ou recriar o menu.
 
 ## 📦 Instalação
 
@@ -141,9 +163,16 @@ sudo apt-get install -f  # instala dependências se necessário
 ```
 monitor-tray/
 ├─ src/
-│  └─ main.rs          # Código principal
+│  ├─ main.rs          # Código principal da aplicação
+│  └─ monitor.rs       # Módulo de monitoramento do sistema
+├─ assets/
+│  ├─ menu.png         # Screenshot do menu detalhado
+│  └─ tray.png         # Screenshot do ícone na tray
+├─ releases/           # Arquivos de distribuição (.deb)
 ├─ Cargo.toml          # Dependências e configuração
 ├─ README.md           # Este arquivo
+├─ build.sh            # Script de build do pacote .deb
+├─ build-autostart.sh  # Script de build com autostart
 └─ target/
    └─ release/
       └─ monitor-tray  # Executável otimizado
@@ -151,11 +180,13 @@ monitor-tray/
 
 ## 🔧 Tecnologias utilizadas
 
-- **[Rust](https://www.rust-lang.org/)** - Linguagem de programação
-- **[sysinfo](https://crates.io/crates/sysinfo)** - Coleta de informações do sistema
-- **[libappindicator](https://crates.io/crates/libappindicator)** - Sistema tray no Linux
-- **[GTK](https://www.gtk.org/)** - Interface gráfica e menus
-- **SVG** - Geração dinâmica de ícones
+- **[Rust](https://www.rust-lang.org/)** - Linguagem de programação para máxima performance
+- **[sysinfo](https://crates.io/crates/sysinfo)** - Coleta completa de informações do sistema
+- **[libappindicator](https://crates.io/crates/libappindicator)** - Sistema tray nativo no Linux
+- **[GTK](https://www.gtk.org/)** - Interface gráfica, menus e widgets
+- **[tokio](https://tokio.rs/)** - Runtime assíncrono para atualizações em tempo real
+- **SVG** - Geração dinâmica de ícones coloridos
+- **Unicode** - Gráficos de barra visuais (🟢🟡🔴)
 
 ## 🐛 Resolução de problemas
 
