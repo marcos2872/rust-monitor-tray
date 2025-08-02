@@ -1,83 +1,67 @@
-# Monitor Tray
+# System Monitor Desktop Bar
 
-Um aplicativo completo de monitoramento de sistema que exibe informações detalhadas em tempo real na system tray (bandeja do sistema). Desenvolvido em Rust para máxima performance e baixo consumo de recursos.
+Uma barra de monitoramento de sistema elegante e minimalista que fica sempre visível no topo da tela. Desenvolvida em Rust para máxima performance e baixo consumo de recursos.
 
-## 📋 Características
+## ✨ Características
 
-- ✅ **Monitoramento completo em tempo real** - Atualizações a cada 50ms
-- ✅ **Interface visual dinâmica** com gráficos de barra coloridos:
-  - 🟢 **Verde**: Uso baixo (< 50%)
-  - 🟡 **Amarelo**: Uso médio (50-80%)
-  - 🔴 **Vermelho**: Uso alto (> 80%)
-- ✅ **Menu contextual completo** com informações detalhadas do sistema
-- ✅ **Gráficos de barra visuais** para CPU e memória
-- ✅ **Informações completas**:
-  - **CPU**: Modelo, cores, frequência, uso com gráfico, load average
-  - **Memória**: Total, usada, disponível, SWAP com porcentagens
-  - **Armazenamento**: Espaço total, usado, disponível por disco
-  - **Rede**: Tráfego RX/TX total e por interface
-  - **Sistema**: Uptime formatado
-- ✅ **Sistema tray nativo** - Integração perfeita com o desktop
-- ✅ **Atualização sem piscar** - Interface fluida e responsiva
-- ✅ **Compatibilidade ampla** - Unity, GNOME, KDE e outros ambientes desktop Linux
-- ✅ **Baixo consumo de recursos** - Escrito em Rust para máxima eficiência
+- 🖥️ **Barra desktop sempre no topo** - Fica sobreposta a todas as janelas
+- 📊 **Monitoramento em tempo real** - Atualizações a cada segundo
+- 🎨 **Interface elegante** com fundo semi-transparente e bordas arredondadas
+- 🌈 **Cores dinâmicas** baseadas no uso do sistema:
+  - 🟢 **Aquamarine**: Uso baixo (< 50%)
+  - 🟡 **Dourado**: Uso médio (50-80%)
+  - 🔴 **Coral**: Uso alto (> 80%)
+- 📐 **Layout fixo** - Textos não se movem durante atualizações
+- 📍 **Posicionamento customizável** - Canto superior esquerdo por padrão
+- 💾 **Informações exibidas**:
+  - **CPU**: Porcentagem de uso
+  - **RAM**: Memória utilizada em GB
+  - **Rede**: Tráfego de download/upload total
+  - **Uptime**: Tempo de atividade do sistema
+- ⚡ **Ultra compacta** - Apenas 250px × 32px
+- 🎯 **Baixo consumo** - Interface leve e eficiente
 
-## 🖥️ Interface
+## 🚀 Execução Rápida
 
-### Ícone da System Tray
-![Tray Icon](assets/tray.png)
+```bash
+# Clone o repositório
+git clone <repository-url>
+cd rust-monitor-tray
 
-O aplicativo exibe na system tray as informações de CPU e RAM com cores dinâmicas baseadas no uso.
-
-### Menu Completo do Sistema
-![Menu System Info](assets/menu.png)
-
-Menu contextual detalhado com:
-- **Processador**: Modelo, gráfico de uso em tempo real, load average
-- **Memória**: Informações de RAM e SWAP com gráficos visuais
-- **Armazenamento**: Espaço total e detalhes por disco/partição  
-- **Rede**: Tráfego de dados por interface
-- **Sistema**: Tempo de atividade (uptime)
-
-### Gráficos de Barra Visuais
-Os gráficos de barra usam caracteres Unicode para uma visualização clara:
-- **🟢 [||||||||||||--------]** - Uso baixo (verde)
-- **🟡 [|||||||||||||||||---]** - Uso médio (amarelo)  
-- **🔴 [||||||||||||||||||||]** - Uso alto (vermelho)
-
-As barras são atualizadas em tempo real (50ms) sem piscar ou recriar o menu.
+# Execute diretamente
+cargo run
+```
 
 ## 📦 Instalação
 
-### Via pacote .deb (Ubuntu/Debian)
+### Compilação e instalação manual
 
-1. Baixe o arquivo `.deb` da seção [Releases](releases)
-2. Instale o pacote:
 ```bash
-sudo dpkg -i monitor-tray-deb.deb
-sudo apt-get install -f  # instala dependências se necessário
+# 1. Clone o repositório
+git clone <repository-url>
+cd rust-monitor-tray
+
+# 2. Compile em modo release
+cargo build --release
+
+# 3. Execute a barra desktop
+./target/release/monitor-tray
 ```
 
 ### Dependências do sistema
-O aplicativo requer as seguintes bibliotecas:
+O aplicativo requer as seguintes bibliotecas GTK:
 - `libgtk-3-0`
 - `libglib2.0-0`
-- `libappindicator3-1`
 
-## 🚀 Execução
-
-Após a instalação, você pode:
-
-1. **Executar via linha de comando:**
+**Ubuntu/Debian:**
 ```bash
-monitor-tray
+sudo apt install libgtk-3-0 libglib2.0-0
 ```
 
-2. **Executar via menu de aplicações:**
-Procure por "Monitor Tray" no launcher de aplicações
-
-3. **Inicialização automática:**
-O aplicativo está configurado para aparecer nas opções de inicialização automática do sistema
+**Fedora:**
+```bash
+sudo dnf install gtk3 glib2
+```
 
 ## 🛠️ Desenvolvimento
 
@@ -89,90 +73,41 @@ O aplicativo está configurado para aparecer nas opções de inicialização aut
 **Ubuntu/Debian:**
 ```bash
 sudo apt update
-sudo apt install build-essential pkg-config libgtk-3-dev libglib2.0-dev libappindicator3-dev
+sudo apt install build-essential pkg-config libgtk-3-dev libglib2.0-dev
 ```
 
 **Fedora:**
 ```bash
-sudo dnf install gcc pkg-config gtk3-devel glib2-devel libappindicator-gtk3-devel
+sudo dnf install gcc pkg-config gtk3-devel glib2-devel
 ```
 
 **Arch Linux:**
 ```bash
-sudo pacman -S base-devel pkgconf gtk3 glib2 libappindicator-gtk3
+sudo pacman -S base-devel pkgconf gtk3 glib2
 ```
 
-### Clone e execução
+### Desenvolvimento local
 
 ```bash
-# Clone o repositório
-git clone <repository-url>
-cd monitor-tray
-
 # Execute em modo de desenvolvimento
 cargo run
 
-# Ou execute com logs detalhados
+# Execute com logs detalhados
 RUST_LOG=debug cargo run
-```
 
-### Build de produção
-
-```bash
-# Gerar executável otimizado
+# Compile versão otimizada
 cargo build --release
-
-# O executável estará em:
-# ./target/release/monitor-tray
-```
-
-### Gerar pacote com autostart .deb
-
-```bash
-# 1. Dar permissão ao script de build
-chmod +x build-autostart.sh
-
-# 2. Executar o script de build
-./build-autostart.sh
-
-# O arquivo monitor-tray-deb.deb será criado
-
-# 3, Instale o pacote:
-sudo dpkg -i sudo dpkg -i releases/monitor-tray-autostart-deb.deb
-sudo apt-get install -f  # instala dependências se necessário
-```
-
-### Gerar pacote sem autostart .deb
-
-```bash
-# 1. Dar permissão ao script de build
-chmod +x build.sh
-
-# 2. Executar o script de build
-./build.sh
-
-# O arquivo monitor-tray-deb.deb será criado
-
-# 3, Instale o pacote:
-sudo dpkg -i sudo dpkg -i releases/monitor-tray-deb.deb
-sudo apt-get install -f  # instala dependências se necessário
 ```
 
 ### Estrutura do projeto
 
 ```
-monitor-tray/
+rust-monitor-tray/
 ├─ src/
-│  ├─ main.rs          # Código principal da aplicação
-│  └─ monitor.rs       # Módulo de monitoramento do sistema
-├─ assets/
-│  ├─ menu.png         # Screenshot do menu detalhado
-│  └─ tray.png         # Screenshot do ícone na tray
-├─ releases/           # Arquivos de distribuição (.deb)
+│  ├─ main.rs          # Interface desktop bar e lógica principal
+│  └─ monitor.rs       # Módulo de coleta de métricas do sistema
 ├─ Cargo.toml          # Dependências e configuração
 ├─ README.md           # Este arquivo
-├─ build.sh            # Script de build do pacote .deb
-├─ build-autostart.sh  # Script de build com autostart
 └─ target/
    └─ release/
       └─ monitor-tray  # Executável otimizado
@@ -180,52 +115,76 @@ monitor-tray/
 
 ## 🔧 Tecnologias utilizadas
 
-- **[Rust](https://www.rust-lang.org/)** - Linguagem de programação para máxima performance
-- **[sysinfo](https://crates.io/crates/sysinfo)** - Coleta completa de informações do sistema
-- **[libappindicator](https://crates.io/crates/libappindicator)** - Sistema tray nativo no Linux
-- **[GTK](https://www.gtk.org/)** - Interface gráfica, menus e widgets
+- **[Rust](https://www.rust-lang.org/)** - Linguagem de programação para máxima performance e segurança
+- **[sysinfo](https://crates.io/crates/sysinfo)** - Coleta de métricas do sistema multiplataforma
+- **[GTK 3](https://www.gtk.org/)** - Interface gráfica nativa do Linux
 - **[tokio](https://tokio.rs/)** - Runtime assíncrono para atualizações em tempo real
-- **SVG** - Geração dinâmica de ícones coloridos
-- **Unicode** - Gráficos de barra visuais (🟢🟡🔴)
+- **CSS** - Estilização com gradientes, transparência e bordas arredondadas
+
+## ⚙️ Personalização
+
+### Posicionamento da barra
+Edite `src/main.rs` na linha de posicionamento:
+```rust
+window.move_(10, 5); // x=10, y=5 (canto superior esquerdo)
+window.move_(960, 5); // Centralizado em tela 1920px
+```
+
+### Transparência do fundo
+Ajuste a opacidade no CSS:
+```rust
+background: rgba(0, 0, 0, 0.8); // 80% opaco
+background: rgba(0, 0, 0, 0.3); // 30% opaco (mais transparente)
+```
+
+### Dimensões da barra
+Modifique o tamanho:
+```rust
+.default_width(250)  // Largura em pixels
+.default_height(32)  // Altura in pixels
+```
 
 ## 🐛 Resolução de problemas
 
-### O ícone não aparece na system tray
-- Verifique se seu ambiente desktop suporta system tray
-- No GNOME, instale a extensão "TopIcons Plus" ou "AppIndicator Support"
-- Reinicie o aplicativo após instalar extensões
+### A barra não aparece
+- Verifique se as dependências GTK estão instaladas
+- Teste com `cargo run` para ver mensagens de erro
+- Alguns gerenciadores de janela podem bloquear janelas "always on top"
 
-### Erro de dependências
-```bash
-# Instale as dependências manualmente
-sudo apt install libgtk-3-0 libglib2.0-0 libappindicator3-1
-```
+### Fundo completamente transparente
+- Seu sistema pode não ter um compositor ativo (Picom, Compton, etc.)
+- Instale um compositor: `sudo apt install picom`
+- Ou ajuste para fundo sólido alterando o CSS para usar cores hex: `#000000`
 
 ### Problemas de compilação
-- Verifique se todas as dependências de desenvolvimento estão instaladas
+- Instale as dependências de desenvolvimento: `sudo apt install build-essential pkg-config libgtk-3-dev`
 - Atualize o Rust: `rustup update`
 
-## 📄 Licença
+## 🚀 Próximas funcionalidades
 
-Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+- [ ] Suporte a múltiplos monitores
+- [ ] Configuração via arquivo de configuração
+- [ ] Temas personalizáveis
+- [ ] Clique para expandir informações detalhadas
+- [ ] Histórico de uso em gráficos
+- [ ] Alertas por notificação
 
 ## 🤝 Contribuição
 
-Contribuições são bem-vindas! Sinta-se à vontade para:
+Contribuições são bem-vindas! Para contribuir:
 
-1. Fazer fork do projeto
-2. Criar uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abrir um Pull Request
+1. Faça fork do projeto
+2. Crie uma branch: `git checkout -b feature/nova-funcionalidade`
+3. Commit suas mudanças: `git commit -m 'Adiciona nova funcionalidade'`
+4. Push para a branch: `git push origin feature/nova-funcionalidade`
+5. Abra um Pull Request
 
 ## 📞 Suporte
 
-Se você encontrar algum problema ou tiver sugestões, por favor:
-- Abra uma [issue](issues) no GitHub
-- Descreva o problema detalhadamente
-- Inclua informações do sistema (distribuição, versão, ambiente desktop)
+- 🐛 **Issues**: Relate bugs ou sugira melhorias
+- 💬 **Discussões**: Ideias e dúvidas gerais
+- 📧 **Email**: Para suporte direto
 
 ---
 
-**Monitor Tray** - Monitoramento de sistema simples e eficiente para Linux 🐧
+**System Monitor Desktop Bar** - Monitoramento elegante e minimalista para Linux 🐧✨
