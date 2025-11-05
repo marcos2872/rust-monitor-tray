@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use sysinfo::{CpuExt, DiskExt, NetworkExt, System, SystemExt};
+use sysinfo::{Disks, Networks, System};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CpuMetrics {
@@ -76,6 +76,8 @@ fn bytes_to_gb(bytes: u64) -> f64 {
 
 pub struct SystemMonitor {
     system: System,
+    disks: Disks,
+    networks: Networks,
 }
 
 impl SystemMonitor {
@@ -83,11 +85,20 @@ impl SystemMonitor {
         let mut system = System::new_all();
         system.refresh_all();
 
-        Self { system }
+        let disks = Disks::new_with_refreshed_list();
+        let networks = Networks::new_with_refreshed_list();
+
+        Self {
+            system,
+            disks,
+            networks,
+        }
     }
 
     pub async fn update_metrics(&mut self) {
         self.system.refresh_all();
+        // Disks and Networks need to be refreshed with 'true' parameter
+        // to fully update all data
         // Wait minimum interval for accurate CPU measurements
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         self.system.refresh_all();
@@ -98,7 +109,10 @@ impl SystemMonitor {
         let total_usage = cpus.iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / cpus.len() as f32;
         let per_core_usage = cpus.iter().map(|cpu| cpu.cpu_usage()).collect();
         let frequency = cpus.first().map(|cpu| cpu.frequency()).unwrap_or(0);
-        let name = self.system.global_cpu_info().brand().to_string();
+        let name = cpus
+            .first()
+            .map(|cpu| cpu.brand().to_string())
+            .unwrap_or_default();
 
         CpuMetrics {
             usage_percent: total_usage,
@@ -127,8 +141,7 @@ impl SystemMonitor {
 
     pub fn get_disk_metrics(&self) -> DiskMetrics {
         let disks: Vec<DiskInfo> = self
-            .system
-            .disks()
+            .disks
             .iter()
             .map(|disk| {
                 let total_space = bytes_to_gb(disk.total_space());
@@ -141,7 +154,7 @@ impl SystemMonitor {
                 };
 
                 DiskInfo {
-                    name: disk.name().to_string_lossy().to_string(),
+                    name: disk.name().to_str().unwrap_or("Unknown").to_string(),
                     mount_point: disk.mount_point().to_string_lossy().to_string(),
                     total_space,
                     available_space,
@@ -168,14 +181,14 @@ impl SystemMonitor {
         let mut total_bytes_received = 0;
         let mut total_bytes_transmitted = 0;
 
-        for (interface_name, data) in self.system.networks() {
+        for (interface_name, data) in &self.networks {
             let interface = NetworkInterface {
-                bytes_received: data.received(),
-                bytes_transmitted: data.transmitted(),
-                packets_received: data.packets_received(),
-                packets_transmitted: data.packets_transmitted(),
-                errors_received: data.errors_on_received(),
-                errors_transmitted: data.errors_on_transmitted(),
+                bytes_received: data.total_received(),
+                bytes_transmitted: data.total_transmitted(),
+                packets_received: data.total_packets_received(),
+                packets_transmitted: data.total_packets_transmitted(),
+                errors_received: data.total_errors_on_received(),
+                errors_transmitted: data.total_errors_on_transmitted(),
             };
 
             total_bytes_received += interface.bytes_received;
@@ -197,9 +210,9 @@ impl SystemMonitor {
             memory: self.get_memory_metrics(),
             disk: self.get_disk_metrics(),
             network: self.get_network_metrics(),
-            uptime: self.system.uptime(),
+            uptime: System::uptime(),
             load_average: {
-                let load_avg = self.system.load_average();
+                let load_avg = System::load_average();
                 (load_avg.one, load_avg.five, load_avg.fifteen)
             },
         }
