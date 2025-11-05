@@ -75,9 +75,12 @@ fn create_bar_chart(value: f32, max_value: f32, width: u32) -> String {
 
     // Create the bar using | characters
     let filled_bar = "|".repeat(filled_width as usize);
-    let empty_bar = "-".repeat(empty_width as usize);
+    let empty_bar = " -".repeat(empty_width as usize);
 
-    format!("{} [{}{}]", filled_char, filled_bar, empty_bar)
+    format!(
+        "{} [{}{}] {:.2}%",
+        filled_char, filled_bar, empty_bar, value
+    )
 }
 
 fn format_bytes(bytes: f64) -> String {
