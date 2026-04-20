@@ -1,10 +1,12 @@
 mod monitor;
 
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
+use std::sync::OnceLock;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow};
@@ -22,12 +24,15 @@ struct IconCache {
 struct MenuItems {
     cpu_usage_item: gtk::MenuItem,
     mem_usage_item: gtk::MenuItem,
+    disk_total_item: gtk::MenuItem,
+    disk_available_item: gtk::MenuItem,
     swap_item: Option<gtk::MenuItem>,
     uptime_item: gtk::MenuItem,
     total_rx_item: gtk::MenuItem,
     total_tx_item: gtk::MenuItem,
 }
 static FILE_TOGGLE: AtomicBool = AtomicBool::new(false);
+static ICON_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 impl IconCache {
     fn new() -> Self {
@@ -58,12 +63,21 @@ impl IconCache {
             self.current_path = Some(path);
         }
 
-        Ok(self.current_path.as_ref().unwrap().clone())
+        self.current_path
+            .clone()
+            .ok_or_else(|| "caminho do ícone indisponível".into())
     }
 }
+
 fn create_bar_chart(value: f32, max_value: f32, width: u32) -> String {
-    let filled_width = ((value / max_value) * width as f32) as u32;
-    let empty_width = width - filled_width;
+    let safe_value = if value.is_finite() { value.max(0.0) } else { 0.0 };
+    let ratio = if max_value.is_finite() && max_value > 0.0 {
+        (safe_value / max_value).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let filled_width = (ratio * width as f32).round() as u32;
+    let empty_width = width.saturating_sub(filled_width);
 
     let filled_char = if value < 50.0 {
         "🟢" // Green circle for 0-50%
@@ -107,6 +121,26 @@ fn format_uptime(seconds: u64) -> String {
     } else {
         format!("{}m", mins)
     }
+}
+
+fn icon_directory() -> Result<&'static PathBuf, Box<dyn std::error::Error>> {
+    if let Some(dir) = ICON_DIR.get() {
+        return Ok(dir);
+    }
+
+    let dir = if let Some(runtime_dir) = std::env::var_os("XDG_RUNTIME_DIR") {
+        PathBuf::from(runtime_dir).join(format!("monitor-tray-{}", std::process::id()))
+    } else {
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+        std::env::temp_dir().join(format!("monitor-tray-{}-{}", std::process::id(), timestamp))
+    };
+
+    std::fs::create_dir_all(&dir)?;
+    let _ = ICON_DIR.set(dir);
+
+    ICON_DIR
+        .get()
+        .ok_or_else(|| "falha ao inicializar diretório de ícones".into())
 }
 
 fn create_system_menu(stats: &SystemMetrics, app: &Application) -> (gtk::Menu, MenuItems) {
@@ -232,6 +266,8 @@ fn create_system_menu(stats: &SystemMetrics, app: &Application) -> (gtk::Menu, M
     let menu_items = MenuItems {
         cpu_usage_item: cpu_usage_item.clone(),
         mem_usage_item: mem_usage_item.clone(),
+        disk_total_item: disk_total_item.clone(),
+        disk_available_item: disk_available_item.clone(),
         swap_item: swap_item.clone(),
         uptime_item: uptime_item.clone(),
         total_rx_item: total_rx_item.clone(),
@@ -265,6 +301,14 @@ fn update_menu_items(menu_items: &MenuItems, stats: &SystemMetrics) {
         }
     }
 
+    // Update disk usage
+    menu_items
+        .disk_total_item
+        .set_label(&format!("Total: {:.1} GB", stats.disk.total_space));
+    menu_items
+        .disk_available_item
+        .set_label(&format!("Disponível: {:.1} GB", stats.disk.available_space));
+
     // Update uptime
     menu_items
         .uptime_item
@@ -282,6 +326,7 @@ fn update_menu_items(menu_items: &MenuItems, stats: &SystemMetrics) {
 }
 
 fn create_text_icon(stats: &SystemMetrics) -> Result<String, Box<dyn std::error::Error>> {
+    use std::fs::OpenOptions;
     use std::io::Write;
 
     // Determine CPU color based on usage
@@ -316,22 +361,33 @@ fn create_text_icon(stats: &SystemMetrics) -> Result<String, Box<dyn std::error:
     );
 
     let current_file = FILE_TOGGLE.fetch_xor(true, Ordering::Relaxed);
-    let temp_path = if current_file {
-        "/tmp/monitor_text_icon_a.svg"
+    let file_name = if current_file {
+        "monitor_text_icon_a.svg"
     } else {
-        "/tmp/monitor_text_icon_b.svg"
+        "monitor_text_icon_b.svg"
     };
+    let temp_path = icon_directory()?.join(file_name);
 
-    let mut file = std::fs::File::create(temp_path)?;
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&temp_path)?;
     file.write_all(svg_content.as_bytes())?;
     file.flush()?;
-    Ok(temp_path.to_string())
+    Ok(temp_path.to_string_lossy().into_owned())
 }
 
 async fn collect_metrics() -> SystemMetrics {
     let mut monitor = SystemMonitor::new();
     monitor.update_metrics().await;
     monitor.get_all_metrics()
+}
+
+fn collect_metrics_blocking() -> Result<SystemMetrics, String> {
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| format!("falha ao criar runtime tokio: {e}"))?;
+    Ok(rt.block_on(collect_metrics()))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -348,20 +404,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .visible(false)
             .build();
 
-        let rt = std::thread::spawn(|| {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(collect_metrics())
-        })
-        .join()
-        .unwrap();
-
-        let stats = rt;
+        let stats = match std::thread::spawn(collect_metrics_blocking).join() {
+            Ok(Ok(stats)) => stats,
+            Ok(Err(err)) => {
+                eprintln!("Erro ao coletar métricas iniciais: {err}");
+                app.quit();
+                return;
+            }
+            Err(_) => {
+                eprintln!("Erro ao aguardar coleta inicial de métricas");
+                app.quit();
+                return;
+            }
+        };
 
         // Create text icon file
         let icon_path = match create_text_icon(&stats) {
             Ok(path) => path,
             Err(e) => {
-                println!("Erro ao criar ícone: {}", e);
+                eprintln!("Erro ao criar ícone: {e}");
+                app.quit();
                 return;
             }
         };
@@ -380,17 +442,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (tx, rx) = mpsc::channel();
 
         // Stats monitoring thread - com runtime próprio
-        thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-
-            loop {
-                let stats = rt.block_on(collect_metrics());
-
-                if tx.send(stats).is_err() {
-                    break;
+        thread::spawn(move || loop {
+            match collect_metrics_blocking() {
+                Ok(stats) => {
+                    if tx.send(stats).is_err() {
+                        break;
+                    }
                 }
-                thread::sleep(Duration::from_millis(500));
+                Err(err) => {
+                    eprintln!("Erro ao coletar métricas: {err}");
+                }
             }
+
+            thread::sleep(Duration::from_millis(500));
         });
 
         // Update UI periodically

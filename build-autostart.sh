@@ -48,7 +48,7 @@ Keywords=system;monitor;cpu;ram;memory;tray;indicator;
 StartupNotify=false
 EOF
 
-# 6. Criar autostart entry (será copiado para ~/.config/autostart/ pelo usuário)
+# 6. Criar autostart entry global do sistema (/etc/xdg/autostart)
 cat > releases/monitor-tray-autostart-deb/etc/xdg/autostart/monitor-tray.desktop << 'EOF'
 [Desktop Entry]
 Type=Application
@@ -86,11 +86,10 @@ fi
 # Informar usuário sobre autostart
 echo "Monitor Tray instalado com sucesso!"
 echo ""
-echo "O aplicativo foi configurado para iniciar automaticamente."
-echo "Para desabilitar o autostart:"
-echo "  - GNOME: Settings > Applications > Startup Applications"
-echo "  - KDE: System Settings > Startup and Shutdown > Autostart"
-echo "  - Ou remova: ~/.config/autostart/monitor-tray.desktop"
+echo "O aplicativo foi configurado para iniciar automaticamente para todos os usuários do sistema."
+echo "Para desabilitar o autostart global:"
+echo "  - Remova: /etc/xdg/autostart/monitor-tray.desktop"
+echo "  - Ou desabilite a entrada nas configurações do seu ambiente desktop"
 echo ""
 echo "Para iniciar agora: monitor-tray"
 

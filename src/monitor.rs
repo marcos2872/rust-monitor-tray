@@ -106,8 +106,13 @@ impl SystemMonitor {
 
     pub fn get_cpu_metrics(&self) -> CpuMetrics {
         let cpus = self.system.cpus();
-        let total_usage = cpus.iter().map(|cpu| cpu.cpu_usage()).sum::<f32>() / cpus.len() as f32;
-        let per_core_usage = cpus.iter().map(|cpu| cpu.cpu_usage()).collect();
+        let core_count = cpus.len();
+        let per_core_usage: Vec<f32> = cpus.iter().map(|cpu| cpu.cpu_usage()).collect();
+        let total_usage = if core_count > 0 {
+            per_core_usage.iter().sum::<f32>() / core_count as f32
+        } else {
+            0.0
+        };
         let frequency = cpus.first().map(|cpu| cpu.frequency()).unwrap_or(0);
         let name = cpus
             .first()
@@ -116,7 +121,7 @@ impl SystemMonitor {
 
         CpuMetrics {
             usage_percent: total_usage,
-            core_count: cpus.len(),
+            core_count,
             per_core_usage,
             frequency,
             name,
@@ -127,7 +132,11 @@ impl SystemMonitor {
         let total_memory = bytes_to_gb(self.system.total_memory());
         let used_memory = bytes_to_gb(self.system.used_memory());
         let available_memory = bytes_to_gb(self.system.available_memory());
-        let usage_percent = (used_memory as f32 / total_memory as f32) * 100.0;
+        let usage_percent = if total_memory > 0.0 {
+            (used_memory as f32 / total_memory as f32) * 100.0
+        } else {
+            0.0
+        };
 
         MemoryMetrics {
             total_memory,
