@@ -227,3 +227,107 @@ impl SystemMonitor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bytes_to_gb_converts_gibibytes() {
+        let bytes = 2 * 1024 * 1024 * 1024;
+
+        assert_eq!(bytes_to_gb(bytes), 2.0);
+    }
+
+    #[test]
+    fn test_get_cpu_metrics_returns_zero_usage_when_system_has_no_cpu_snapshot() {
+        let monitor = SystemMonitor {
+            system: System::new(),
+            disks: Disks::new_with_refreshed_list(),
+            networks: Networks::new_with_refreshed_list(),
+        };
+
+        let cpu = monitor.get_cpu_metrics();
+
+        assert_eq!(cpu.core_count, 0);
+        assert_eq!(cpu.per_core_usage, Vec::<f32>::new());
+        assert_eq!(cpu.usage_percent, 0.0);
+        assert_eq!(cpu.frequency, 0);
+        assert_eq!(cpu.name, "");
+    }
+
+    #[test]
+    fn test_get_memory_metrics_returns_zero_usage_when_total_memory_is_zero() {
+        let monitor = SystemMonitor {
+            system: System::new(),
+            disks: Disks::new_with_refreshed_list(),
+            networks: Networks::new_with_refreshed_list(),
+        };
+
+        let memory = monitor.get_memory_metrics();
+
+        assert_eq!(memory.total_memory, 0.0);
+        assert_eq!(memory.used_memory, 0.0);
+        assert_eq!(memory.available_memory, 0.0);
+        assert_eq!(memory.usage_percent, 0.0);
+    }
+
+    #[test]
+    fn test_get_cpu_metrics_returns_consistent_shape_on_live_system() {
+        let monitor = SystemMonitor::new();
+
+        let cpu = monitor.get_cpu_metrics();
+
+        assert_eq!(cpu.per_core_usage.len(), cpu.core_count);
+        assert!(cpu.usage_percent.is_finite());
+        assert!(cpu.usage_percent >= 0.0);
+    }
+
+    #[test]
+    fn test_get_disk_metrics_aggregates_child_disks() {
+        let monitor = SystemMonitor::new();
+
+        let disk = monitor.get_disk_metrics();
+        let expected_total: f64 = disk.disks.iter().map(|item| item.total_space).sum();
+        let expected_used: f64 = disk.disks.iter().map(|item| item.used_space).sum();
+        let expected_available: f64 = disk.disks.iter().map(|item| item.available_space).sum();
+
+        assert!((disk.total_space - expected_total).abs() < f64::EPSILON);
+        assert!((disk.used_space - expected_used).abs() < f64::EPSILON);
+        assert!((disk.available_space - expected_available).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_get_network_metrics_totals_match_interface_sums() {
+        let monitor = SystemMonitor::new();
+
+        let network = monitor.get_network_metrics();
+        let expected_received: u64 = network
+            .interfaces
+            .values()
+            .map(|interface| interface.bytes_received)
+            .sum();
+        let expected_transmitted: u64 = network
+            .interfaces
+            .values()
+            .map(|interface| interface.bytes_transmitted)
+            .sum();
+
+        assert_eq!(network.total_bytes_received, expected_received);
+        assert_eq!(network.total_bytes_transmitted, expected_transmitted);
+    }
+
+    #[test]
+    fn test_get_all_metrics_returns_non_negative_snapshot() {
+        let monitor = SystemMonitor::new();
+
+        let metrics = monitor.get_all_metrics();
+
+        assert!(metrics.uptime <= System::uptime());
+        assert!(metrics.cpu.usage_percent.is_finite());
+        assert!(metrics.memory.usage_percent.is_finite());
+        assert!(metrics.load_average.0.is_finite());
+        assert!(metrics.load_average.1.is_finite());
+        assert!(metrics.load_average.2.is_finite());
+    }
+}

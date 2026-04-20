@@ -4,13 +4,14 @@ APP_NAME := monitor-tray
 CARGO := cargo
 CARGO_WATCH := $(CARGO) watch
 
-.PHONY: help build build-autostart dev run check-tools check-watch install-dev-tools
+.PHONY: help build build-autostart test dev run check-tools check-watch install-dev-tools
 
 help:
 	@echo "Targets disponíveis:"
 	@echo "  make build            - Gera o pacote .deb sem autostart"
 	@echo "  make build-autostart  - Gera o pacote .deb com autostart global"
 	@echo "  make run              - Executa o app em modo de desenvolvimento"
+	@echo "  make test             - Executa a suíte de testes"
 	@echo "  make dev              - Executa em modo dev com hot-reload via cargo-watch"
 	@echo "  make check-tools      - Verifica se cargo está instalado"
 	@echo "  make check-watch      - Verifica se cargo-watch está instalado"
@@ -43,6 +44,9 @@ build-autostart: check-tools
 
 run: check-tools
 	@$(CARGO) run
+
+test: check-tools
+	@$(CARGO) test
 
 dev: check-watch
 	@$(CARGO_WATCH) -q -x run

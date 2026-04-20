@@ -22,11 +22,12 @@
 
 - **Dev server:** `make dev`
 - **Build:** `cargo build --release`
+- **Testes:** `make test` ou `cargo test`
 
 ## Estrutura de Diretórios
 
 - **Código principal:** `src/`
-- **Testes:** `tests/ (não encontrado)`
+- **Testes:** `src/` com módulos `#[cfg(test)]`; `tests/` reservado para integração futura
 
 ## Módulos
 
@@ -40,9 +41,9 @@
 
 ## Testes
 
-- **Framework:** `(preencher manualmente)`
-- **Diretório:** `tests/` ⚠️ não encontrado
-- **Executar todos:** `(preencher manualmente)`
+- **Framework:** `cargo test` (testes unitários Rust)
+- **Diretório:** `src/` com módulos `#[cfg(test)]` embutidos; `tests/` reservado para integração futura
+- **Executar todos:** `make test` ou `cargo test`
 - **Com cobertura:** `(preencher manualmente)`
 
 ## Convenções de Código
@@ -74,5 +75,5 @@ Ou siga diretamente as regras em `.agents/skills/git-commit-push/SKILL.md`.
 | `plan`    | Cria planos detalhados em `.pi/plans/`         | escrita em .pi/plans/  |
 | `quality` | Auditoria de qualidade de código               | bash + leitura         |
 | `qa`      | Análise de bugs e edge cases                   | bash + leitura         |
-| `test`    | Cria e mantém testes automatizados             | escrita em tests/      |
+| `test`    | Cria e mantém testes automatizados             | escrita em `src/` e `tests/` |
 | `doc`     | Cria documentação técnica em `docs/`           | escrita em docs/       |
