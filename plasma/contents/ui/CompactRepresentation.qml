@@ -33,6 +33,12 @@ Item {
         anchors.margins: 2
         spacing: 6
 
+        Kirigami.Icon {
+            source: Qt.resolvedUrl("../icons/com.monitortray.plasmoid.svg")
+            Layout.preferredWidth: 18
+            Layout.preferredHeight: 18
+        }
+
         RowLayout {
             spacing: 3
 

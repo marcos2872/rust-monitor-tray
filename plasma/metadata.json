@@ -5,7 +5,7 @@
     "Description": "Popup de monitoramento de sistema integrado ao KDE Plasma",
     "Version": "0.1.0",
     "Category": "System Information",
-    "Icon": "utilities-system-monitor",
+    "Icon": "com.monitortray.plasmoid",
     "License": "MIT",
     "Authors": [
       {
