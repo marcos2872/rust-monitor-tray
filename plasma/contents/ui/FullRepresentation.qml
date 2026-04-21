@@ -6,7 +6,7 @@ import "components"
 import "tabs"
 import "."
 
-PlasmaComponents3.ScrollView {
+Item {
     id: root
 
     width: 480
@@ -40,13 +40,12 @@ PlasmaComponents3.ScrollView {
         return errorMessage.length === 0 && (!metrics.cpu || metrics.cpu.name === "");
     }
 
-    clip: true
-    contentWidth: availableWidth
-    QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
-    QQC2.ScrollBar.vertical.policy: QQC2.ScrollBar.AsNeeded
-
+    // ── Seção fixa: cabeçalho + barra de tabs ────────────────────────────────
     ColumnLayout {
-        width: root.availableWidth
+        id: fixedSection
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
         spacing: theme.spacingM
 
         SectionHeader {
@@ -57,76 +56,89 @@ PlasmaComponents3.ScrollView {
                 : (root.isLoading() ? "Coletando métricas..." : "Uptime: " + theme.fmtUptime(metrics.uptime))
         }
 
-        MetricCard {
-            visible: root.isLoading()
-            title: "Carregando"
-            subtitle: "Aguardando a primeira resposta do backend"
-
-            PlasmaComponents3.Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: "O Plasmoid está coletando as métricas iniciais do sistema."
-            }
-        }
-
-        MetricCard {
-            visible: root.errorMessage.length > 0
-            title: "Backend indisponível"
-            subtitle: "O Plasmoid não conseguiu obter métricas do serviço monitor-tray"
-
-            PlasmaComponents3.Label {
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: root.errorMessage
-            }
-        }
-
-        Item {
+        PlasmaComponents3.TabBar {
+            id: tabs
             visible: !root.isLoading() && root.errorMessage.length === 0
             Layout.fillWidth: true
-            implicitHeight: contentColumn.implicitHeight
+            currentIndex: root.currentTab
+            onCurrentIndexChanged: root.currentTab = currentIndex
 
-            ColumnLayout {
-                id: contentColumn
-                anchors.fill: parent
-                spacing: theme.spacingM
+            PlasmaComponents3.TabButton { text: "CPU" }
+            PlasmaComponents3.TabButton { text: "RAM" }
+            PlasmaComponents3.TabButton { text: "GPU" }
+            PlasmaComponents3.TabButton { text: "Disk" }
+            PlasmaComponents3.TabButton { text: "Network" }
+            PlasmaComponents3.TabButton { text: "Sensors" }
+            PlasmaComponents3.TabButton { text: "System" }
+        }
+    }
 
-                PlasmaComponents3.TabBar {
-                    id: tabs
+    // ── Área de scroll: apenas o conteúdo ───────────────────────────────────
+    PlasmaComponents3.ScrollView {
+        id: scrollView
+        anchors.top: fixedSection.bottom
+        anchors.topMargin: theme.spacingM
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+
+        clip: true
+        contentWidth: availableWidth
+        QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
+        QQC2.ScrollBar.vertical.policy: QQC2.ScrollBar.AsNeeded
+
+        ColumnLayout {
+            width: scrollView.availableWidth
+            spacing: theme.spacingM
+
+            MetricCard {
+                visible: root.isLoading()
+                Layout.fillWidth: true
+                title: "Carregando"
+                subtitle: "Aguardando a primeira resposta do backend"
+
+                PlasmaComponents3.Label {
                     Layout.fillWidth: true
-                    currentIndex: root.currentTab
-                    onCurrentIndexChanged: root.currentTab = currentIndex
-
-                    PlasmaComponents3.TabButton { text: "CPU" }
-                    PlasmaComponents3.TabButton { text: "RAM" }
-                    PlasmaComponents3.TabButton { text: "GPU" }
-                    PlasmaComponents3.TabButton { text: "Disk" }
-                    PlasmaComponents3.TabButton { text: "Network" }
-                    PlasmaComponents3.TabButton { text: "Sensors" }
-                    PlasmaComponents3.TabButton { text: "System" }
+                    wrapMode: Text.WordWrap
+                    text: "O Plasmoid está coletando as métricas iniciais do sistema."
                 }
+            }
 
-                Loader {
-                    id: activeTabLoader
+            MetricCard {
+                visible: root.errorMessage.length > 0
+                Layout.fillWidth: true
+                title: "Backend indisponível"
+                subtitle: "O Plasmoid não conseguiu obter métricas do serviço monitor-tray"
+
+                PlasmaComponents3.Label {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: item ? item.implicitHeight : 0
-                    sourceComponent: root.currentTab === 0 ? cpuTabComponent
-                        : root.currentTab === 1 ? memoryTabComponent
-                        : root.currentTab === 2 ? gpuTabComponent
-                        : root.currentTab === 3 ? diskTabComponent
-                        : root.currentTab === 4 ? networkTabComponent
-                        : root.currentTab === 5 ? sensorsTabComponent
-                        : systemTabComponent
+                    wrapMode: Text.WordWrap
+                    text: root.errorMessage
                 }
+            }
+
+            Loader {
+                id: activeTabLoader
+                visible: !root.isLoading() && root.errorMessage.length === 0
+                Layout.fillWidth: true
+                Layout.preferredHeight: item ? item.implicitHeight : 0
+                sourceComponent: root.currentTab === 0 ? cpuTabComponent
+                    : root.currentTab === 1 ? memoryTabComponent
+                    : root.currentTab === 2 ? gpuTabComponent
+                    : root.currentTab === 3 ? diskTabComponent
+                    : root.currentTab === 4 ? networkTabComponent
+                    : root.currentTab === 5 ? sensorsTabComponent
+                    : systemTabComponent
             }
         }
     }
 
+    // ── Componentes das tabs ─────────────────────────────────────────────────
+
     Component {
         id: cpuTabComponent
-
         CpuTab {
-            width: root.availableWidth
+            width: scrollView.availableWidth
             metrics: root.metrics
             history: root.cpuHistory
             historyDurationMs: root.historyDurationMs
@@ -135,9 +147,8 @@ PlasmaComponents3.ScrollView {
 
     Component {
         id: memoryTabComponent
-
         MemoryTab {
-            width: root.availableWidth
+            width: scrollView.availableWidth
             metrics: root.metrics
             history: root.memoryHistory
             historyDurationMs: root.historyDurationMs
@@ -145,10 +156,19 @@ PlasmaComponents3.ScrollView {
     }
 
     Component {
-        id: diskTabComponent
+        id: gpuTabComponent
+        GpuTab {
+            width: scrollView.availableWidth
+            metrics: root.metrics
+            gpuHistory: root.gpuHistory
+            historyDurationMs: root.historyDurationMs
+        }
+    }
 
+    Component {
+        id: diskTabComponent
         DiskTab {
-            width: root.availableWidth
+            width: scrollView.availableWidth
             metrics: root.metrics
             diskReadHistory: root.diskReadHistory
             diskWriteHistory: root.diskWriteHistory
@@ -159,9 +179,8 @@ PlasmaComponents3.ScrollView {
 
     Component {
         id: networkTabComponent
-
         NetworkTab {
-            width: root.availableWidth
+            width: scrollView.availableWidth
             metrics: root.metrics
             downloadHistory: root.networkDownloadHistory
             uploadHistory: root.networkUploadHistory
@@ -173,34 +192,19 @@ PlasmaComponents3.ScrollView {
 
     Component {
         id: sensorsTabComponent
-
         SensorsTab {
-            width: root.availableWidth
+            width: scrollView.availableWidth
             metrics: root.metrics
-        }
-    }
-
-    Component {
-        id: gpuTabComponent
-
-        GpuTab {
-            width: root.availableWidth
-            metrics: root.metrics
-            gpuHistory: root.gpuHistory
-            historyDurationMs: root.historyDurationMs
         }
     }
 
     Component {
         id: systemTabComponent
-
         SystemTab {
-            width: root.availableWidth
+            width: scrollView.availableWidth
             metrics: root.metrics
         }
     }
 
-    Theme {
-        id: theme
-    }
+    Theme { id: theme }
 }
