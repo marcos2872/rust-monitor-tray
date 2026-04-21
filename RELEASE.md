@@ -2,6 +2,8 @@
 
 O pipeline de CI compila e publica automaticamente via GitHub Actions quando uma tag `v*` é criada.
 
+> Release atual publicada: **`v0.1.1`**
+
 ## Passos
 
 **1. Certifique-se de que o branch `main` está estável**
@@ -15,15 +17,15 @@ cargo clippy --all-targets --all-features -- -D warnings
 
 | Mudança | Exemplo |
 |---|---|
-| Correção de bug | `v1.0.1` |
-| Nova funcionalidade | `v1.1.0` |
-| Quebra de compatibilidade | `v2.0.0` |
+| Correção de bug | `v0.1.1` |
+| Nova funcionalidade | `v0.2.0` |
+| Quebra de compatibilidade | `v1.0.0` |
 
 **3. Crie e envie a tag**
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 O GitHub Actions irá automaticamente:
@@ -43,6 +45,6 @@ O GitHub Actions irá automaticamente:
 ## Remover uma tag (se necessário)
 
 ```bash
-git tag -d v1.0.0                  # remove local
-git push origin --delete v1.0.0   # remove remota
+git tag -d v0.1.1                  # remove local
+git push origin --delete v0.1.1   # remove remota
 ```
