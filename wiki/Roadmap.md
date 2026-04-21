@@ -9,17 +9,20 @@
 - [x] Coleta de RAM e swap via sysinfo
 - [x] Coleta de disco: espaço e I/O em tempo real via `/proc/diskstats`
 - [x] Coleta de rede: bytes acumulados e status das interfaces
-- [x] Sensores: temperaturas agrupadas por chip, fans (RPM + duty), tensão, corrente, potência via `/sys/class/hwmon`
+- [x] Sensores: temperaturas agrupadas por chip, fans (RPM + duty%), tensão, corrente, potência via `/sys/class/hwmon`
 - [x] GPU AMD via sysfs: uso%, VRAM, clocks, temperatura, potência, fan RPM
-- [x] GPU NVIDIA via subprocess `nvidia-smi`
-- [x] GPU Intel via sysfs: clock e temperatura (limitado)
+- [x] GPU NVIDIA: múltiplas GPUs suportadas — `nvidia-smi` retorna todas (uma linha por GPU no CSV)
+- [x] GPU Intel via sysfs: clock e temperatura (limitado, kernel ≥ 5.16)
 - [x] Informações do sistema: hostname, OS, kernel, arquitetura, contagem de processos
 - [x] Serviço `systemd --user` para o backend DBus
+- [x] Fan duty% AMD disponível em `SensorMetrics.fans` via hwmon (visível na aba Sensors)
 
 ### Frontend QML
 - [x] 7 abas: CPU, RAM, GPU, Disk, Network, Sensors, System
 - [x] TabBar fixa no topo, scroll apenas no conteúdo
 - [x] Histórico de 5 minutos: CPU, RAM, GPU, Disk I/O, Download, Upload
+- [x] Temperatura da CPU filtrada por chip (`coretemp`/`k10temp`) no hero da aba CPU
+- [x] Temperatura da GPU disponível em `GpuInfo.temperature_celsius` na aba GPU
 - [x] Design system centralizado no `Theme.qml`
 - [x] Ícone personalizado no catálogo de widgets
 
@@ -34,9 +37,8 @@
 ### Backend
 - [ ] Percentual de uso por processo (top N processos por CPU e RAM)
 - [ ] Latência de rede (ping ao gateway)
-- [ ] Temperatura separada por tipo: CPU hottest vs GPU hottest
-- [ ] Suporte a múltiplas GPUs NVIDIA via `nvidia-smi --id`
-- [ ] Velocidade do fan em % além de RPM para AMD
+- [ ] Campos dedicados no modelo: `hottest_cpu_celsius` e `hottest_gpu_celsius` em `SensorMetrics`
+- [ ] `GpuInfo.fan_duty_percent` para AMD (duty% da GPU especificamente, além do RPM já existente)
 
 ### Frontend QML
 - [ ] Configurações por aba (intervalo de atualização, janela de histórico)
