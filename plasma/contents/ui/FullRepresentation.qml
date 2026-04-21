@@ -14,6 +14,13 @@ PlasmaComponents3.ScrollView {
 
     property var metrics: ({})
     property string errorMessage: ""
+    property var cpuHistory: []
+    property var memoryHistory: []
+    property var networkDownloadHistory: []
+    property var networkUploadHistory: []
+    property real networkDownloadRate: 0
+    property real networkUploadRate: 0
+    property int historyDurationMs: 5 * 60 * 1000
     property int currentTab: 0
 
     function isLoading() {
@@ -98,6 +105,7 @@ PlasmaComponents3.ScrollView {
                     PlasmaComponents3.TabButton { text: "RAM" }
                     PlasmaComponents3.TabButton { text: "Disk" }
                     PlasmaComponents3.TabButton { text: "Network" }
+                    PlasmaComponents3.TabButton { text: "Sensors" }
                     PlasmaComponents3.TabButton { text: "System" }
                 }
 
@@ -109,6 +117,7 @@ PlasmaComponents3.ScrollView {
                         : root.currentTab === 1 ? memoryTabComponent
                         : root.currentTab === 2 ? diskTabComponent
                         : root.currentTab === 3 ? networkTabComponent
+                        : root.currentTab === 4 ? sensorsTabComponent
                         : systemTabComponent
                 }
             }
@@ -121,6 +130,8 @@ PlasmaComponents3.ScrollView {
         CpuTab {
             width: root.availableWidth
             metrics: root.metrics
+            history: root.cpuHistory
+            historyDurationMs: root.historyDurationMs
         }
     }
 
@@ -130,6 +141,8 @@ PlasmaComponents3.ScrollView {
         MemoryTab {
             width: root.availableWidth
             metrics: root.metrics
+            history: root.memoryHistory
+            historyDurationMs: root.historyDurationMs
         }
     }
 
@@ -146,6 +159,20 @@ PlasmaComponents3.ScrollView {
         id: networkTabComponent
 
         NetworkTab {
+            width: root.availableWidth
+            metrics: root.metrics
+            downloadHistory: root.networkDownloadHistory
+            uploadHistory: root.networkUploadHistory
+            downloadRate: root.networkDownloadRate
+            uploadRate: root.networkUploadRate
+            historyDurationMs: root.historyDurationMs
+        }
+    }
+
+    Component {
+        id: sensorsTabComponent
+
+        SensorsTab {
             width: root.availableWidth
             metrics: root.metrics
         }

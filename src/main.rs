@@ -872,7 +872,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use crate::monitor::{
-        CpuMetrics, DiskInfo, DiskMetrics, MemoryMetrics, NetworkInterface, NetworkMetrics,
+        CpuMetrics, CurrentSensor, DiskInfo, DiskMetrics, FanSensor, MemoryMetrics,
+        NetworkInterface, NetworkMetrics, PowerSensor, SensorMetrics, VoltageSensor,
     };
     use std::collections::HashMap;
     use std::fs;
@@ -930,6 +931,29 @@ mod tests {
                 interfaces,
                 total_bytes_received: 1024,
                 total_bytes_transmitted: 2048,
+            },
+            sensors: SensorMetrics {
+                temperatures: vec![],
+                average_temperature_celsius: None,
+                hottest_temperature_celsius: None,
+                hottest_label: String::new(),
+                fans: vec![FanSensor {
+                    label: "CPU Fan".to_string(),
+                    rpm: 1450,
+                    duty_percent: Some(42.0),
+                }],
+                voltages: vec![VoltageSensor {
+                    label: "Core Voltage".to_string(),
+                    volts: 1.2,
+                }],
+                currents: vec![CurrentSensor {
+                    label: "CPU Current".to_string(),
+                    amps: 2.5,
+                }],
+                powers: vec![PowerSensor {
+                    label: "Package Power".to_string(),
+                    watts: 65.5,
+                }],
             },
             uptime: 90061,
             load_average: (0.5, 0.7, 0.9),

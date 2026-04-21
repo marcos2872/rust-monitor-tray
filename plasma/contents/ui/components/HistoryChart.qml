@@ -1,0 +1,160 @@
+import QtQuick 2.15
+import QtQuick.Layouts 1.15
+import org.kde.plasma.components 3.0 as PlasmaComponents3
+
+Item {
+    id: root
+
+    property var values: []
+    property color strokeColor: "#60a5fa"
+    property color fillColor: Qt.rgba(0.376, 0.647, 0.98, 0.18)
+    property real minimumValue: 0
+    property real maximumValue: -1
+    property string maxLabel: ""
+    property string minLabel: "0"
+    property string leftFooterText: "5 min atrás"
+
+    implicitHeight: 132
+    Layout.fillWidth: true
+
+    function computedMaximum() {
+        if (root.maximumValue > root.minimumValue) {
+            return root.maximumValue;
+        }
+
+        var maxValue = root.minimumValue;
+        for (var index = 0; index < root.values.length; index += 1) {
+            var value = Number(root.values[index]);
+            if (!isNaN(value)) {
+                maxValue = Math.max(maxValue, value);
+            }
+        }
+        return Math.max(maxValue, root.minimumValue + 1);
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 4
+
+        RowLayout {
+            Layout.fillWidth: true
+
+            Item { Layout.fillWidth: true }
+
+            PlasmaComponents3.Label {
+                text: root.maxLabel.length > 0 ? root.maxLabel : Math.round(root.computedMaximum()).toString()
+                opacity: 0.7
+                font.pixelSize: 11
+            }
+        }
+
+        Rectangle {
+            id: chartArea
+            Layout.fillWidth: true
+            Layout.preferredHeight: 96
+            radius: 6
+            color: Qt.rgba(1, 1, 1, 0.04)
+            border.color: Qt.rgba(1, 1, 1, 0.08)
+
+            Canvas {
+                id: canvas
+                anchors.fill: parent
+                anchors.margins: 1
+                antialiasing: true
+
+                function xForIndex(index, count, width) {
+                    if (count <= 1) return 0;
+                    return index * (width / (count - 1));
+                }
+
+                function yForValue(value, minValue, maxValue, height) {
+                    var normalized = (Number(value) - minValue) / Math.max(1e-6, (maxValue - minValue));
+                    normalized = Math.max(0, Math.min(1, normalized));
+                    return height - (normalized * height);
+                }
+
+                onPaint: {
+                    var ctx = getContext("2d");
+                    var width = canvas.width;
+                    var height = canvas.height;
+                    if (ctx.reset) {
+                        ctx.reset();
+                    }
+                    ctx.clearRect(0, 0, width, height);
+
+                    var minValue = root.minimumValue;
+                    var maxValue = root.computedMaximum();
+
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+                    for (var line = 1; line <= 3; line += 1) {
+                        var y = (height / 4) * line;
+                        ctx.beginPath();
+                        ctx.moveTo(0, y);
+                        ctx.lineTo(width, y);
+                        ctx.stroke();
+                    }
+
+                    if (!root.values || root.values.length === 0) {
+                        return;
+                    }
+
+                    ctx.beginPath();
+                    for (var index = 0; index < root.values.length; index += 1) {
+                        var x = xForIndex(index, root.values.length, width);
+                        var yValue = yForValue(root.values[index], minValue, maxValue, height);
+                        if (index === 0) {
+                            ctx.moveTo(x, yValue);
+                        } else {
+                            ctx.lineTo(x, yValue);
+                        }
+                    }
+                    ctx.lineTo(width, height);
+                    ctx.lineTo(0, height);
+                    ctx.closePath();
+                    ctx.fillStyle = root.fillColor;
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    for (var lineIndex = 0; lineIndex < root.values.length; lineIndex += 1) {
+                        var lineX = xForIndex(lineIndex, root.values.length, width);
+                        var lineY = yForValue(root.values[lineIndex], minValue, maxValue, height);
+                        if (lineIndex === 0) {
+                            ctx.moveTo(lineX, lineY);
+                        } else {
+                            ctx.lineTo(lineX, lineY);
+                        }
+                    }
+                    ctx.strokeStyle = root.strokeColor;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+
+            PlasmaComponents3.Label {
+                text: root.leftFooterText
+                opacity: 0.65
+                font.pixelSize: 11
+            }
+
+            Item { Layout.fillWidth: true }
+
+            PlasmaComponents3.Label {
+                text: root.minLabel
+                opacity: 0.65
+                font.pixelSize: 11
+            }
+        }
+    }
+
+    onValuesChanged: canvas.requestPaint()
+    onStrokeColorChanged: canvas.requestPaint()
+    onFillColorChanged: canvas.requestPaint()
+    onMaximumValueChanged: canvas.requestPaint()
+    onMinimumValueChanged: canvas.requestPaint()
+    Component.onCompleted: canvas.requestPaint()
+}

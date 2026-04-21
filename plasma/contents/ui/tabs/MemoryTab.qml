@@ -8,10 +8,16 @@ ColumnLayout {
     id: root
 
     property var metrics: ({})
+    property var history: []
+    property int historyDurationMs: 5 * 60 * 1000
 
     function fmtOne(value) {
         if (value === undefined || value === null || isNaN(value)) return "0.0";
         return Number(value).toFixed(1);
+    }
+
+    function historyWindowLabel() {
+        return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
 
     Layout.fillWidth: true
@@ -68,6 +74,22 @@ ColumnLayout {
             label: "Swap"
             value: metrics && metrics.memory && metrics.memory.total_swap > 0 ? (metrics.memory.used_swap / metrics.memory.total_swap) * 100.0 : 0
             barColor: "#a78bfa"
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Histórico"
+        subtitle: root.historyWindowLabel()
+
+        HistoryChart {
+            Layout.fillWidth: true
+            values: root.history
+            strokeColor: theme.memoryColor
+            fillColor: Qt.rgba(0.753, 0.518, 0.988, 0.18)
+            maximumValue: 100
+            maxLabel: "100%"
+            minLabel: "0%"
         }
     }
 

@@ -8,10 +8,16 @@ ColumnLayout {
     id: root
 
     property var metrics: ({})
+    property var history: []
+    property int historyDurationMs: 5 * 60 * 1000
 
     function fmtPercent(value) {
         if (value === undefined || value === null || isNaN(value)) return "0%";
         return Math.round(Number(value)) + "%";
+    }
+
+    function historyWindowLabel() {
+        return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
 
     Layout.fillWidth: true
@@ -49,11 +55,28 @@ ColumnLayout {
             value: metrics && metrics.cpu ? metrics.cpu.usage_percent : 0
             barColor: theme.cpuColor
         }
+    }
 
-        SectionHeader {
-            title: "Uso por núcleo"
-            subtitle: "Resumo dos núcleos lógicos"
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Histórico"
+        subtitle: root.historyWindowLabel()
+
+        HistoryChart {
+            Layout.fillWidth: true
+            values: root.history
+            strokeColor: theme.cpuColor
+            fillColor: Qt.rgba(0.376, 0.647, 0.98, 0.18)
+            maximumValue: 100
+            maxLabel: "100%"
+            minLabel: "0%"
         }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Uso por núcleo"
+        subtitle: "Resumo dos núcleos lógicos"
 
         GridLayout {
             Layout.fillWidth: true

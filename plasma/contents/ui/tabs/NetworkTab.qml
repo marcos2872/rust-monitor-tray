@@ -8,6 +8,11 @@ ColumnLayout {
     id: root
 
     property var metrics: ({})
+    property var downloadHistory: []
+    property var uploadHistory: []
+    property real downloadRate: 0
+    property real uploadRate: 0
+    property int historyDurationMs: 5 * 60 * 1000
 
     function asArray(mapObject) {
         var rows = [];
@@ -33,6 +38,26 @@ ColumnLayout {
         return size.toFixed(index === 0 ? 0 : 1) + " " + units[index];
     }
 
+    function fmtRate(value) {
+        return fmtBytes(value) + "/s";
+    }
+
+    function historyWindowLabel() {
+        return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
+    }
+
+    function historyMaximum() {
+        var maximum = 1;
+        var index;
+        for (index = 0; index < downloadHistory.length; index += 1) {
+            maximum = Math.max(maximum, Number(downloadHistory[index]) || 0);
+        }
+        for (index = 0; index < uploadHistory.length; index += 1) {
+            maximum = Math.max(maximum, Number(uploadHistory[index]) || 0);
+        }
+        return maximum;
+    }
+
     Layout.fillWidth: true
     spacing: theme.spacingM
 
@@ -49,21 +74,70 @@ ColumnLayout {
 
             MetricRow {
                 Layout.fillWidth: true
-                label: "RX"
+                label: "RX total"
                 value: metrics && metrics.network ? root.fmtBytes(metrics.network.total_bytes_received) : "-"
             }
 
             MetricRow {
                 Layout.fillWidth: true
-                label: "TX"
+                label: "TX total"
                 value: metrics && metrics.network ? root.fmtBytes(metrics.network.total_bytes_transmitted) : "-"
             }
+
+            MetricRow {
+                Layout.fillWidth: true
+                label: "RX atual"
+                value: root.fmtRate(root.downloadRate)
+            }
+
+            MetricRow {
+                Layout.fillWidth: true
+                label: "TX atual"
+                value: root.fmtRate(root.uploadRate)
+            }
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Histórico"
+        subtitle: root.historyWindowLabel()
+
+        SectionHeader {
+            title: "Download"
+            subtitle: root.fmtRate(root.downloadRate)
+        }
+
+        HistoryChart {
+            Layout.fillWidth: true
+            values: root.downloadHistory
+            strokeColor: theme.cpuColor
+            fillColor: Qt.rgba(0.376, 0.647, 0.98, 0.18)
+            maximumValue: root.historyMaximum()
+            maxLabel: root.fmtRate(root.historyMaximum())
+            minLabel: "0 B/s"
         }
 
         SectionHeader {
-            title: "Interfaces mais ativas"
-            subtitle: "Ordenadas por tráfego total"
+            title: "Upload"
+            subtitle: root.fmtRate(root.uploadRate)
         }
+
+        HistoryChart {
+            Layout.fillWidth: true
+            values: root.uploadHistory
+            strokeColor: theme.dangerColor
+            fillColor: Qt.rgba(0.937, 0.267, 0.267, 0.18)
+            maximumValue: root.historyMaximum()
+            maxLabel: root.fmtRate(root.historyMaximum())
+            minLabel: "0 B/s"
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Interfaces mais ativas"
+        subtitle: "Ordenadas por tráfego total"
 
         Repeater {
             model: root.asArray(metrics && metrics.network ? metrics.network.interfaces : null)

@@ -14,13 +14,32 @@ PlasmoidItem {
         memory: { usage_percent: 0, used_memory: 0, total_memory: 0, available_memory: 0, total_swap: 0, used_swap: 0 },
         disk: { used_space: 0, total_space: 0, available_space: 0, disks: [] },
         network: { total_bytes_received: 0, total_bytes_transmitted: 0, interfaces: {} },
+        sensors: {
+            temperatures: [],
+            average_temperature_celsius: null,
+            hottest_temperature_celsius: null,
+            hottest_label: "",
+            fans: [],
+            voltages: [],
+            currents: [],
+            powers: []
+        },
         uptime: 0,
         load_average: [0, 0, 0]
     })
     property string errorMessage: ""
     property var cpuHistory: []
     property var memoryHistory: []
-    readonly property int historyLength: 16
+    property var networkDownloadHistory: []
+    property var networkUploadHistory: []
+    property real networkDownloadRate: 0
+    property real networkUploadRate: 0
+    property real lastNetworkTimestamp: 0
+    property real previousBytesReceived: -1
+    property real previousBytesTransmitted: -1
+    readonly property int sampleIntervalMs: 1500
+    readonly property int historyDurationMs: 5 * 60 * 1000
+    readonly property int historyLength: Math.max(2, Math.ceil(historyDurationMs / sampleIntervalMs))
     readonly property string backendCommand: "gdbus call --session --dest com.monitortray.Backend --object-path /com/monitortray/Backend --method com.monitortray.Backend.GetMetricsJson"
 
     preferredRepresentation: compactRepresentation
@@ -31,6 +50,13 @@ PlasmoidItem {
     fullRepresentation: FullRepresentation {
         metrics: root.metrics
         errorMessage: root.errorMessage
+        cpuHistory: root.cpuHistory
+        memoryHistory: root.memoryHistory
+        networkDownloadHistory: root.networkDownloadHistory
+        networkUploadHistory: root.networkUploadHistory
+        networkDownloadRate: root.networkDownloadRate
+        networkUploadRate: root.networkUploadRate
+        historyDurationMs: root.historyDurationMs
     }
 
     function normalizedUsage(value) {
@@ -42,11 +68,16 @@ PlasmoidItem {
 
     function appendHistory(history, value) {
         var next = history.slice(0);
-        next.push(normalizedUsage(value));
+        var numericValue = Number(value);
+        next.push(isNaN(numericValue) ? 0 : Math.max(0, numericValue));
         while (next.length > root.historyLength) {
             next.shift();
         }
         return next;
+    }
+
+    function appendPercentHistory(history, value) {
+        return appendHistory(history, normalizedUsage(value));
     }
 
     function extractJsonPayload(rawOutput) {
@@ -63,9 +94,28 @@ PlasmoidItem {
 
     function applyMetrics(jsonText) {
         var parsed = JSON.parse(jsonText);
+        var now = Date.now();
+        var totalReceived = parsed.network ? Number(parsed.network.total_bytes_received || 0) : 0;
+        var totalTransmitted = parsed.network ? Number(parsed.network.total_bytes_transmitted || 0) : 0;
+        var downloadRate = 0;
+        var uploadRate = 0;
+
+        if (root.lastNetworkTimestamp > 0 && root.previousBytesReceived >= 0 && root.previousBytesTransmitted >= 0) {
+            var elapsedSeconds = Math.max(0.001, (now - root.lastNetworkTimestamp) / 1000.0);
+            downloadRate = Math.max(0, (totalReceived - root.previousBytesReceived) / elapsedSeconds);
+            uploadRate = Math.max(0, (totalTransmitted - root.previousBytesTransmitted) / elapsedSeconds);
+        }
+
         root.metrics = parsed;
-        root.cpuHistory = appendHistory(root.cpuHistory, parsed.cpu ? parsed.cpu.usage_percent : 0);
-        root.memoryHistory = appendHistory(root.memoryHistory, parsed.memory ? parsed.memory.usage_percent : 0);
+        root.cpuHistory = appendPercentHistory(root.cpuHistory, parsed.cpu ? parsed.cpu.usage_percent : 0);
+        root.memoryHistory = appendPercentHistory(root.memoryHistory, parsed.memory ? parsed.memory.usage_percent : 0);
+        root.networkDownloadRate = downloadRate;
+        root.networkUploadRate = uploadRate;
+        root.networkDownloadHistory = appendHistory(root.networkDownloadHistory, downloadRate);
+        root.networkUploadHistory = appendHistory(root.networkUploadHistory, uploadRate);
+        root.previousBytesReceived = totalReceived;
+        root.previousBytesTransmitted = totalTransmitted;
+        root.lastNetworkTimestamp = now;
         root.errorMessage = "";
     }
 
@@ -109,7 +159,7 @@ PlasmoidItem {
     }
 
     Timer {
-        interval: 1500
+        interval: root.sampleIntervalMs
         repeat: true
         running: true
         triggeredOnStart: true
