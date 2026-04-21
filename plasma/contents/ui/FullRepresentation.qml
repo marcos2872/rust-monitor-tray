@@ -9,8 +9,16 @@ import "."
 PlasmaComponents3.ScrollView {
     id: root
 
-    implicitWidth: 460
-    implicitHeight: 720
+    width: 480
+    height: 760
+    implicitWidth: 480
+    implicitHeight: 760
+    Layout.minimumWidth: 480
+    Layout.minimumHeight: 760
+    Layout.preferredWidth: 480
+    Layout.preferredHeight: 760
+    Layout.maximumWidth: 480
+    Layout.maximumHeight: 760
 
     property var metrics: ({})
     property string errorMessage: ""

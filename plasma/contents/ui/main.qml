@@ -9,6 +9,9 @@ PlasmoidItem {
     Plasmoid.constraintHints: PlasmaCore.Types.CanFillArea
     Plasmoid.status: PlasmaCore.Types.ActiveStatus
 
+    switchWidth: 480
+    switchHeight: 760
+
     property var metrics: ({
         cpu: { usage_percent: 0, frequency: 0, core_count: 0, name: "", per_core_usage: [] },
         memory: { usage_percent: 0, used_memory: 0, total_memory: 0, available_memory: 0, total_swap: 0, used_swap: 0 },
