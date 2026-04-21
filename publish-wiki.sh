@@ -40,7 +40,7 @@ git -c user.email="wiki@monitortray" -c user.name="Monitor Tray" \
   commit -m "docs(wiki): update pages from wiki/ directory"
 
 echo "📤 Enviando para o GitHub Wiki..."
-git push -u origin master 2>/dev/null || git push -u origin main
+git push -u origin master
 
 echo ""
 echo "✅ Wiki publicado: https://github.com/${REPO}/wiki"
