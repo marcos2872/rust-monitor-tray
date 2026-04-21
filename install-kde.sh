@@ -110,6 +110,17 @@ echo "🧩 Instalando/atualizando plasmoid $PLASMOID_ID..."
 "$KPACKAGETOOL" --type Plasma/Applet --upgrade "$PLASMOID_DIR" >/dev/null 2>&1 || \
   "$KPACKAGETOOL" --type Plasma/Applet --install "$PLASMOID_DIR"
 
+echo "🖼️  Instalando ícone no tema hicolor do usuário..."
+ICON_DIR="${HOME}/.local/share/icons/hicolor/256x256/apps"
+mkdir -p "$ICON_DIR"
+cp "${PLASMOID_DIR}/contents/icons/com.monitortray.plasmoid.png" \
+   "${ICON_DIR}/com.monitortray.plasmoid.png"
+if command -v kbuildsycoca6 >/dev/null 2>&1; then
+  kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+elif command -v kbuildsycoca5 >/dev/null 2>&1; then
+  kbuildsycoca5 --noincremental >/dev/null 2>&1 || true
+fi
+
 echo "📝 Instalando serviço systemd do usuário em $SERVICE_PATH..."
 mkdir -p "$SERVICE_DIR"
 cat > "$SERVICE_PATH" <<EOF
