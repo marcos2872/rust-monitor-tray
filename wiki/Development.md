@@ -82,6 +82,7 @@ Sempre que alterar um desses pontos, atualize a referência técnica corresponde
 - nova fonte Linux, novo subprocesso ou mudança no ciclo → `docs/backend.md`
 - mudança de comportamento em aba/componentes/estado QML → `docs/frontend.md`
 - mudança estrutural entre backend, DBus e frontend → `docs/architecture.md`
+- mudança no cache quente de `FastMetricsJson` ou no fluxo rápido/lento → `docs/backend.md` e `docs/frontend.md`
 
 ---
 
@@ -99,7 +100,7 @@ src/
     └── hwmon.rs         # Leitura de /sys/class/hwmon
 
 plasma/contents/ui/
-├── main.qml                 # cliente DBus persistente, polling rápido/lento e estado segmentado
+├── main.qml                 # cliente DBus persistente, polling rápido/lento, debounce do caminho lento e estado segmentado
 ├── FullRepresentation.qml   # layout expandido
 ├── CompactRepresentation.qml# resumo no painel
 ├── Theme.qml                # paleta e formatadores
@@ -121,7 +122,9 @@ Os testes unitários ficam em `src/monitor/mod.rs` e `src/monitor/collector.rs`.
 Quando alterar métricas recentes, vale validar manualmente também:
 
 - polling DBus rápido no popup expandido e no modo compacto;
+- `FastMetricsJson` servido do cache quente do backend;
 - polling DBus lento para sensores/GPU/processos quando expandido;
+- debounce antes do primeiro fetch lento ao abrir o popup;
 - fallback para `GetMetricsJson` quando o backend ainda estiver em versão antiga;
 - timer separado de status para o teste manual de velocidade na aba `Network`;
 - reconexão automática quando o backend DBus sobe/para;
@@ -137,8 +140,8 @@ Quando alterar métricas recentes, vale validar manualmente também:
 ## Publicar uma release
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 O GitHub Actions compila, testa e publica automaticamente. Veja [RELEASE.md](https://github.com/marcos2872/rust-monitor-tray/blob/main/RELEASE.md) para detalhes.

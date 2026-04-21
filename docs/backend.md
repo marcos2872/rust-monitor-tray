@@ -39,33 +39,28 @@ gdbus call --session \
 
 ```mermaid
 flowchart TD
-    A["Timer rápido do frontend"] -->|FastMetricsJson| B["update_fast_metrics()"]
-    B --> C1["snapshot /proc/stat"]
-    B --> C2["snapshot /proc/diskstats"]
-    B --> C3["refresh_cpu_usage()"]
-    C3 --> C4{"refresh_processes?"}
-    C4 -->|sim| C5["refresh_processes_specifics(cpu only)"]
-    C4 -->|não| D["sleep 200 ms"]
-    C5 --> D
-    D --> E1["refresh_cpu_usage()"]
-    E1 --> E2{"refresh_cpu_frequency?"}
-    E2 -->|sim| E3["refresh_cpu_frequency()"]
-    E2 -->|não| E4["refresh_memory()"]
-    E3 --> E4
-    E4 --> E5{"refresh_processes?"}
-    E5 -->|sim| E6["refresh_processes_specifics(cpu + memory)"]
-    E5 -->|não| E7["refresh disks/networks"]
-    E6 --> E7
-    E7 --> E8{"refresh_sensors?"}
-    E8 -->|sim| E9["components.refresh(false)"]
-    E8 -->|não| F1["compute_cpu_percents()"]
-    E9 --> F1
-    F1 --> F2["compute_disk_io_rates()"]
-    F2 --> F5{"refresh_latency?"}
-    F5 -->|sim| F6["tokio::spawn(measure_gateway_latency())"]
-    F5 -->|não| G["get_fast_metrics()"]
-    F6 --> G
-    G --> H["serde_json::to_string(FastMetrics)"]
+    subgraph CacheQuente["Atualizador em background"]
+        B["update_fast_metrics()"] --> C1["snapshot /proc/stat"]
+        B --> C2["snapshot /proc/diskstats"]
+        B --> C3["refresh_cpu_usage()"]
+        C3 --> D["sleep 200 ms"]
+        D --> E1["refresh_cpu_usage()"]
+        E1 --> E2{"refresh_cpu_frequency?"}
+        E2 -->|sim| E3["refresh_cpu_frequency()"]
+        E2 -->|não| E4["refresh_memory()"]
+        E3 --> E4
+        E4 --> E7["refresh disks/networks"]
+        E7 --> F1["compute_cpu_percents()"]
+        F1 --> F2["compute_disk_io_rates()"]
+        F2 --> F5{"refresh_latency?"}
+        F5 -->|sim| F6["tokio::spawn(measure_gateway_latency())"]
+        F5 -->|não| G["get_fast_metrics()"]
+        F6 --> G
+        G --> H["serde_json::to_string(FastMetrics)"]
+        H --> I["atualiza fast_metrics_cache"]
+    end
+
+    A["Timer rápido do frontend"] -->|FastMetricsJson| J["lê fast_metrics_cache"]
 ```
 
 O caminho lento roda em chamada separada (`SlowMetricsJson`) e atualiza apenas sensores, GPUs e processos.
@@ -79,14 +74,28 @@ O backend usa duas leituras separadas por `200 ms` para obter deltas confiáveis
 
 A latência de rede **não** é medida em todo ciclo. O ping ao gateway roda apenas a cada `7` ciclos, aproximadamente **10 segundos**, para evitar subprocessos excessivos e tráfego ICMP contínuo.
 
-Além disso, o backend agora usa **frequências diferentes por subsistema** e também expõe um contrato DBus separado para caminho quente e caminho lento:
+Além disso, o backend agora usa **frequências diferentes por subsistema** e também expõe um contrato DBus separado para caminho quente e caminho lento.
 
-- GPU: a cada `3` ciclos;
-- sensores: a cada `2` ciclos;
-- top processos: a cada `2` ciclos;
+O ponto importante da implementação atual é que o custo dessa janela de `200 ms` foi movido para um **atualizador em background** no serviço DBus. Assim, `FastMetricsJson` responde do cache quente em vez de bloquear a chamada esperando a janela de medição.
+
+Frequências/TTL atuais:
+
+- GPU: a cada `3` ciclos, com idade máxima de ~`4.5 s`;
+- sensores: a cada `2` ciclos, com idade máxima de ~`3 s`;
+- top processos: a cada `2` ciclos, com idade máxima de ~`3 s`;
 - frequência de CPU: a cada `10` ciclos.
 
 Isso reduz trabalho recorrente sem perder responsividade perceptível no widget.
+
+### Cache quente do caminho rápido
+
+No serviço DBus, `FastMetricsJson` é atendido por um cache em memória atualizado em background.
+
+Na prática:
+
+- o custo da janela de medição (~`200 ms`) continua existindo para produzir o snapshot rápido;
+- esse custo saiu do caminho crítico da chamada DBus;
+- a chamada `FastMetricsJson` responde lendo `fast_metrics_cache`, o que reduz bastante a latência percebida pelo frontend.
 
 ---
 

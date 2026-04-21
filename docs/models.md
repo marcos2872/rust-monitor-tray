@@ -5,7 +5,7 @@ Todos os modelos são definidos em `src/monitor/models.rs` e derivam `Serialize`
 O backend hoje expõe três payloads JSON principais via DBus:
 
 - `GetMetricsJson` → snapshot completo legado (`SystemMetrics`)
-- `FastMetricsJson` → snapshot quente (`FastMetrics`)
+- `FastMetricsJson` → snapshot quente (`FastMetrics`), servido do cache rápido do backend
 - `SlowMetricsJson` → snapshot lento (`SlowMetrics`)
 
 ---

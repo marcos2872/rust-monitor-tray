@@ -43,16 +43,16 @@ flowchart TD
 
 ## Estado global em `main.qml`
 
-### Payload atual (`metrics`)
+### Estado inicial relevante
 
-O objeto `metrics` inicial já contempla os campos mais recentes do contrato:
+O estado inicial do frontend já contempla os campos mais recentes do contrato:
 
-- `network.gateway_ip`
-- `network.gateway_latency_ms`
-- `top_processes`
-- `gpus[*].fan_duty_percent`
+- `networkMetrics.gateway_ip`
+- `networkMetrics.gateway_latency_ms`
+- `topProcesses`
+- `gpuMetrics[*].fan_duty_percent`
 
-> `SensorMetrics` no estado inicial ainda usa apenas campos essenciais; os campos opcionais novos chegam do backend no primeiro `applyMetrics()`.
+> `sensorMetrics` no estado inicial ainda usa apenas campos essenciais; os campos opcionais novos chegam do backend no primeiro apply de payload.
 
 ### Polling e cliente DBus
 
@@ -68,8 +68,15 @@ Regras atuais de atualização:
 - timer rápido: `3000 ms` quando o widget está apenas no modo **compacto**;
 - timer lento: `4500 ms` quando o popup está **expandido**;
 - `fastFetchInProgress` / `slowFetchInProgress` evitam chamadas sobrepostas;
-- ao expandir o popup, o frontend dispara coleta imediata dos caminhos rápido e lento;
+- ao expandir o popup, o frontend dispara coleta imediata do caminho rápido;
+- o primeiro fetch lento após abrir o popup usa pequeno debounce (`250 ms`) para reduzir burst no backend;
 - se o backend ainda não expuser `FastMetricsJson` / `SlowMetricsJson`, o frontend recua automaticamente para `GetMetricsJson`.
+
+### Caminho rápido em cache quente
+
+O frontend continua chamando `FastMetricsJson`, mas esse método não mede mais CPU/disco sob demanda a cada request.
+
+No desenho atual, o backend mantém um snapshot rápido em cache atualizado em background. Na prática, isso reduz bastante a latência percebida do fetch rápido no popup.
 
 ### Estado global segmentado
 
@@ -94,17 +101,17 @@ Isso reduz invalidação global de bindings e evita repassar um snapshot monolí
 
 | Propriedade | Conteúdo | Calculado em |
 |---|---|---|
-| `cpuHistory` | `cpu.usage_percent` | `applyMetrics()` |
-| `memoryHistory` | `memory.usage_percent` | `applyMetrics()` |
-| `networkDownloadRate` | delta local de bytes recebidos | `applyMetrics()` |
-| `networkUploadRate` | delta local de bytes enviados | `applyMetrics()` |
-| `networkDownloadHistory` | histórico de download | `applyMetrics()` |
-| `networkUploadHistory` | histórico de upload | `applyMetrics()` |
-| `diskReadRate` | `disk.total_read_bytes_per_sec` | `applyMetrics()` |
-| `diskWriteRate` | `disk.total_write_bytes_per_sec` | `applyMetrics()` |
-| `diskReadHistory` | histórico de leitura de disco | `applyMetrics()` |
-| `diskWriteHistory` | histórico de escrita de disco | `applyMetrics()` |
-| `gpuHistory` | `gpus[0].usage_percent` | `applyMetrics()` |
+| `cpuHistory` | `cpu.usage_percent` | `applyFastPayload()` |
+| `memoryHistory` | `memory.usage_percent` | `applyFastPayload()` |
+| `networkDownloadRate` | delta local de bytes recebidos | `applyFastPayload()` |
+| `networkUploadRate` | delta local de bytes enviados | `applyFastPayload()` |
+| `networkDownloadHistory` | histórico de download | `applyFastPayload()` |
+| `networkUploadHistory` | histórico de upload | `applyFastPayload()` |
+| `diskReadRate` | `disk.total_read_bytes_per_sec` | `applyFastPayload()` |
+| `diskWriteRate` | `disk.total_write_bytes_per_sec` | `applyFastPayload()` |
+| `diskReadHistory` | histórico de leitura de disco | `applyFastPayload()` |
+| `diskWriteHistory` | histórico de escrita de disco | `applyFastPayload()` |
+| `gpuHistory` | `gpus[0].usage_percent` | `applySlowPayload()` |
 
 O histórico é circular e usa:
 
@@ -123,18 +130,18 @@ Além disso, os históricos passaram a usar um buffer circular lógico, evitando
 
 | Índice | Aba | Arquivo | Props principais |
 |---|---|---|---|
-| 0 | CPU | `CpuTab.qml` | `metrics`, `history`, `historyDurationMs` |
-| 1 | RAM | `MemoryTab.qml` | `metrics`, `history`, `historyDurationMs` |
-| 2 | GPU | `GpuTab.qml` | `metrics`, `gpuHistory`, `historyDurationMs` |
-| 3 | Disk | `DiskTab.qml` | `metrics`, `diskReadHistory`, `diskWriteHistory`, `diskReadRate`, `diskWriteRate` |
-| 4 | Network | `NetworkTab.qml` | `metrics`, `downloadHistory`, `uploadHistory`, `downloadRate`, `uploadRate`, `historyDurationMs` |
-| 5 | Sensors | `SensorsTab.qml` | `metrics` |
-| 6 | System | `SystemTab.qml` | `metrics` |
+| 0 | CPU | `CpuTab.qml` | `cpuMetrics`, `sensorMetrics`, `history`, `historyDurationMs` |
+| 1 | RAM | `MemoryTab.qml` | `memoryMetrics`, `history`, `historyDurationMs` |
+| 2 | GPU | `GpuTab.qml` | `gpus`, `gpuHistory`, `historyDurationMs` |
+| 3 | Disk | `DiskTab.qml` | `diskMetrics`, `diskReadHistory`, `diskWriteHistory`, `diskReadRate`, `diskWriteRate` |
+| 4 | Network | `NetworkTab.qml` | `networkMetrics`, `networkSpeedTestStatus`, `downloadHistory`, `uploadHistory`, `downloadRate`, `uploadRate`, `historyDurationMs` |
+| 5 | Sensors | `SensorsTab.qml` | `sensorMetrics` |
+| 6 | System | `SystemTab.qml` | `systemInfo`, `topProcesses`, `uptime`, `loadAverage` |
 
 ### CPU — `CpuTab.qml`
 
 - hero com temperatura, gauge de uso total e load de 1 minuto;
-- usa **diretamente** `metrics.sensors.hottest_cpu_celsius` e `hottest_cpu_label`;
+- usa **diretamente** `sensorMetrics.hottest_cpu_celsius` e `hottest_cpu_label`;
 - histórico de uso da CPU;
 - detalhes de `user`, `system`, `idle`, `steal` e uptime;
 - grade por núcleo e load average.
@@ -231,6 +238,7 @@ O frontend mantém apenas lógica de apresentação e derivação leve. Com as m
 - o detalhe de `fan_duty_percent` da GPU passou a ser exibido sem necessidade de cálculo local;
 - o polling deixou de usar subprocesso `gdbus call` e passou a usar cliente DBus persistente assíncrono;
 - o caminho quente passou a consumir payload DBus reduzido (`FastMetricsJson`);
+- o caminho quente passou a ler um snapshot rápido em cache mantido pelo backend;
 - o estado QML deixou de ser substituído como um objeto monolítico;
 - os históricos deixaram de copiar arrays inteiros em cada amostra;
 - o teste manual de velocidade foi isolado em um fluxo DBus próprio, fora do polling contínuo.
