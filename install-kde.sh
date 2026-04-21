@@ -9,15 +9,17 @@ BIN_PATH="${BIN_DIR}/${APP_NAME}"
 SERVICE_DIR="${HOME}/.config/systemd/user"
 SERVICE_PATH="${SERVICE_DIR}/${APP_NAME}.service"
 RELOAD_PLASMA=1
+PREBUILT_BINARY=""  # caminho para binário pré-compilado (opcional)
 
 usage() {
   cat <<EOF
 Instala o monitor-tray para KDE/Plasma no usuário atual.
 
 Uso:
-  ./install-kde.sh [--no-plasma-reload] [--bin-dir <diretório>]
+  ./install-kde.sh [opções]
 
 Opções:
+  --binary PATH        Usa binário pré-compilado em vez de rodar cargo build
   --no-plasma-reload   Não reinicia o plasmashell ao final
   --bin-dir DIR        Diretório de instalação do binário (padrão: ~/.local/bin)
   -h, --help           Exibe esta ajuda
@@ -59,6 +61,14 @@ reload_plasma() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --binary)
+      if [[ $# -lt 2 ]]; then
+        echo "Erro: --binary exige um valor" >&2
+        exit 1
+      fi
+      PREBUILT_BINARY="$2"
+      shift 2
+      ;;
     --no-plasma-reload)
       RELOAD_PLASMA=0
       shift
@@ -100,11 +110,17 @@ if [[ ! -d "$PLASMOID_DIR" ]]; then
 fi
 
 echo "🔨 Compilando backend Rust em release..."
-cargo build --release
-
-echo "📦 Instalando binário em $BIN_PATH..."
-mkdir -p "$BIN_DIR"
-install -Dm755 "target/release/${APP_NAME}" "$BIN_PATH"
+if [[ -n "$PREBUILT_BINARY" ]]; then
+  echo "→ Usando binário pré-compilado: $PREBUILT_BINARY"
+  mkdir -p "$(dirname "${BIN_PATH}")"
+  install -Dm755 "$PREBUILT_BINARY" "$BIN_PATH"
+else
+  require_command cargo
+  cargo build --release
+  echo "📦 Instalando binário em $BIN_PATH..."
+  mkdir -p "$BIN_DIR"
+  install -Dm755 "target/release/${APP_NAME}" "$BIN_PATH"
+fi
 
 echo "🧩 Instalando/atualizando plasmoid $PLASMOID_ID..."
 "$KPACKAGETOOL" --type Plasma/Applet --upgrade "$PLASMOID_DIR" >/dev/null 2>&1 || \

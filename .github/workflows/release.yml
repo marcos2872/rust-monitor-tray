@@ -1,0 +1,61 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build e publica release latest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instala Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Executa testes
+        run: cargo test
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Empacota plasmoid + scripts
+        run: |
+          tar -czf monitor-tray-plasmoid.tar.gz \
+            plasma/ \
+            install-kde.sh \
+            uninstall-kde.sh \
+            assets/
+
+      - name: Publica/atualiza release latest
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "${{ github.ref_name }}"
+          body: |
+            ## Instalação rápida
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/marcos2872/rust-monitor-tray/main/install.sh | sh
+            ```
+          prerelease: false
+          make_latest: true
+          files: |
+            target/release/monitor-tray
+            monitor-tray-plasmoid.tar.gz
