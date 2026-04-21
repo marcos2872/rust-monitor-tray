@@ -88,6 +88,11 @@ mod tests {
             disks: Disks::new_with_refreshed_list(),
             networks: Networks::new_with_refreshed_list(),
             components: Components::new_with_refreshed_list(),
+            cpu_user_percent: 0.0,
+            cpu_system_percent: 0.0,
+            cpu_idle_percent: 0.0,
+            disk_read_rates: std::collections::HashMap::new(),
+            disk_write_rates: std::collections::HashMap::new(),
         };
 
         let cpu = monitor.get_cpu_metrics();
@@ -95,6 +100,9 @@ mod tests {
         assert_eq!(cpu.core_count, 0);
         assert_eq!(cpu.per_core_usage, Vec::<f32>::new());
         assert_eq!(cpu.usage_percent, 0.0);
+        assert_eq!(cpu.user_percent, 0.0);
+        assert_eq!(cpu.system_percent, 0.0);
+        assert_eq!(cpu.idle_percent, 0.0);
         assert_eq!(cpu.frequency, 0);
         assert_eq!(cpu.name, "");
     }
@@ -106,6 +114,11 @@ mod tests {
             disks: Disks::new_with_refreshed_list(),
             networks: Networks::new_with_refreshed_list(),
             components: Components::new_with_refreshed_list(),
+            cpu_user_percent: 0.0,
+            cpu_system_percent: 0.0,
+            cpu_idle_percent: 0.0,
+            disk_read_rates: std::collections::HashMap::new(),
+            disk_write_rates: std::collections::HashMap::new(),
         };
 
         let memory = monitor.get_memory_metrics();

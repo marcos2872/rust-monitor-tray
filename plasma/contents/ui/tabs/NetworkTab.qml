@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
+import org.kde.plasma.components 3.0 as PlasmaComponents3
 import "../components"
 import ".."
 
@@ -64,7 +65,9 @@ ColumnLayout {
         Layout.fillWidth: true
         hero: true
         title: "Network"
-        subtitle: root.historyWindowLabel()
+        subtitle: metrics && metrics.network && metrics.network.interfaces
+            ? Object.keys(metrics.network.interfaces).length + " interfaces"
+            : "Sem dados"
 
         RowLayout {
             Layout.fillWidth: true
@@ -132,13 +135,71 @@ ColumnLayout {
         subtitle: "Interfaces mais ativas"
 
         Repeater {
+            id: ifaceRepeater
             model: root.asArray(metrics && metrics.network ? metrics.network.interfaces : null)
 
-            delegate: MetricRow {
+            delegate: ColumnLayout {
                 Layout.fillWidth: true
-                accentColor: theme.networkColor
-                label: modelData.name
-                value: "↓ " + root.fmtBytes(modelData.data.bytes_received) + " · ↑ " + root.fmtBytes(modelData.data.bytes_transmitted)
+                spacing: theme.spacingXS
+
+                // Linha 1: ● nome da interface
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: theme.spacingS
+
+                    Rectangle {
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: modelData.data.is_up ? theme.successColor : theme.dangerColor
+                        Layout.alignment: Qt.AlignVCenter
+                    }
+
+                    PlasmaComponents3.Label {
+                        text: modelData.name
+                        font.bold: true
+                        font.pixelSize: 12
+                        color: theme.subduedTextColor
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                    }
+                }
+
+                // Linha 2: ↓ bytes   ↑ bytes   [chip]
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: theme.spacingM
+
+                    // recuo alinhado com o nome
+                    Item { Layout.preferredWidth: 8 + theme.spacingS }
+
+                    PlasmaComponents3.Label {
+                        text: "↓ " + root.fmtBytes(modelData.data.bytes_received)
+                        font.pixelSize: 11
+                        color: theme.cpuColor
+                    }
+
+                    PlasmaComponents3.Label {
+                        text: "↑ " + root.fmtBytes(modelData.data.bytes_transmitted)
+                        font.pixelSize: 11
+                        color: theme.dangerColor
+                        Layout.fillWidth: true
+                    }
+
+                    StatusChip {
+                        text: modelData.data.is_up ? "UP" : "DOWN"
+                        chipColor: modelData.data.is_up ? theme.successColor : theme.dangerColor
+                    }
+                }
+
+                // Separador entre interfaces
+                Rectangle {
+                    visible: index < ifaceRepeater.count - 1
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: theme.outlineColor
+                    opacity: 0.5
+                }
             }
         }
     }

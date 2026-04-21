@@ -13,9 +13,9 @@ PlasmoidItem {
     switchHeight: 760
 
     property var metrics: ({
-        cpu: { usage_percent: 0, frequency: 0, core_count: 0, name: "", per_core_usage: [] },
+        cpu: { usage_percent: 0, frequency: 0, core_count: 0, name: "", per_core_usage: [], user_percent: 0, system_percent: 0, idle_percent: 0 },
         memory: { usage_percent: 0, used_memory: 0, total_memory: 0, available_memory: 0, total_swap: 0, used_swap: 0 },
-        disk: { used_space: 0, total_space: 0, available_space: 0, disks: [] },
+        disk: { used_space: 0, total_space: 0, available_space: 0, disks: [], total_read_bytes_per_sec: 0, total_write_bytes_per_sec: 0 },
         network: { total_bytes_received: 0, total_bytes_transmitted: 0, interfaces: {} },
         sensors: {
             temperatures: [],
@@ -37,6 +37,10 @@ PlasmoidItem {
     property var networkUploadHistory: []
     property real networkDownloadRate: 0
     property real networkUploadRate: 0
+    property var diskReadHistory: []
+    property var diskWriteHistory: []
+    property real diskReadRate: 0
+    property real diskWriteRate: 0
     property real lastNetworkTimestamp: 0
     property real previousBytesReceived: -1
     property real previousBytesTransmitted: -1
@@ -59,6 +63,10 @@ PlasmoidItem {
         networkUploadHistory: root.networkUploadHistory
         networkDownloadRate: root.networkDownloadRate
         networkUploadRate: root.networkUploadRate
+        diskReadHistory: root.diskReadHistory
+        diskWriteHistory: root.diskWriteHistory
+        diskReadRate: root.diskReadRate
+        diskWriteRate: root.diskWriteRate
         historyDurationMs: root.historyDurationMs
     }
 
@@ -119,6 +127,10 @@ PlasmoidItem {
         root.previousBytesReceived = totalReceived;
         root.previousBytesTransmitted = totalTransmitted;
         root.lastNetworkTimestamp = now;
+        root.diskReadRate  = parsed.disk ? (parsed.disk.total_read_bytes_per_sec  || 0) : 0;
+        root.diskWriteRate = parsed.disk ? (parsed.disk.total_write_bytes_per_sec || 0) : 0;
+        root.diskReadHistory  = appendHistory(root.diskReadHistory,  root.diskReadRate);
+        root.diskWriteHistory = appendHistory(root.diskWriteHistory, root.diskWriteRate);
         root.errorMessage = "";
     }
 

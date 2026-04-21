@@ -29,6 +29,10 @@ PlasmaComponents3.ScrollView {
     property real networkDownloadRate: 0
     property real networkUploadRate: 0
     property int historyDurationMs: 5 * 60 * 1000
+    property var diskReadHistory: []
+    property var diskWriteHistory: []
+    property real diskReadRate: 0
+    property real diskWriteRate: 0
     property int currentTab: 0
 
     function isLoading() {
@@ -160,6 +164,10 @@ PlasmaComponents3.ScrollView {
         DiskTab {
             width: root.availableWidth
             metrics: root.metrics
+            diskReadHistory: root.diskReadHistory
+            diskWriteHistory: root.diskWriteHistory
+            diskReadRate: root.diskReadRate
+            diskWriteRate: root.diskWriteRate
         }
     }
 

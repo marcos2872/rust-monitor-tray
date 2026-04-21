@@ -52,7 +52,6 @@ ColumnLayout {
                 centerText: Math.round(metrics && metrics.memory ? metrics.memory.usage_percent : 0) + "%"
                 label: "Memória"
                 accentColor: theme.memoryColor
-                footnote: root.historyWindowLabel()
             }
 
             HeroMetric {

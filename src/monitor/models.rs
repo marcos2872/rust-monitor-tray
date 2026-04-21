@@ -4,6 +4,9 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CpuMetrics {
     pub usage_percent: f32,
+    pub user_percent: f32,
+    pub system_percent: f32,
+    pub idle_percent: f32,
     pub core_count: usize,
     pub per_core_usage: Vec<f32>,
     pub frequency: u64,
@@ -26,6 +29,8 @@ pub struct DiskMetrics {
     pub total_space: f64,
     pub used_space: f64,
     pub available_space: f64,
+    pub total_read_bytes_per_sec: u64,
+    pub total_write_bytes_per_sec: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +41,8 @@ pub struct DiskInfo {
     pub available_space: f64,
     pub used_space: f64,
     pub usage_percent: f32,
+    pub read_bytes_per_sec: u64,
+    pub write_bytes_per_sec: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +60,7 @@ pub struct NetworkInterface {
     pub packets_transmitted: u64,
     pub errors_received: u64,
     pub errors_transmitted: u64,
+    pub is_up: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
