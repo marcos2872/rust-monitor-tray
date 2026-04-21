@@ -5,12 +5,12 @@
 ## Projeto
 
 - **Nome:** monitor-tray
-- **Descrição:** Monitor de sistema para KDE Plasma com arquitetura backend Rust + DBus + Plasmoid. O binário coleta métricas do sistema e o frontend em `plasma/` renderiza o widget compacto e o popup expandido.
+- **Descrição:** Monitor de sistema para KDE Plasma — CPU, RAM, GPU, Disco, Rede, Sensores e Sistema em um widget de painel.
 
 ## Stack
 
 - **Linguagem(s):** Rust (edition 2021; README indica Rust 1.70+), QML
-- **Frameworks:** Tokio, zbus, sysinfo, Plasma/Plasmoid API
+- **Frameworks:** Tokio, zbus, sysinfo
 
 ## Gerenciamento de Dependências
 
@@ -23,8 +23,8 @@
 - **Testes:** `make test`
 - **Lint:** `make lint`
 - **QML lint:** `make qml-lint`
-- **Dev server:** `make dev` (backend DBus com cargo-watch)
-- **Build:** `make build` ou `cargo build --release`
+- **Dev server:** `make dev`
+- **Build:** `make build`
 - **Backend DBus:** `make run-dbus`
 - **JSON de teste:** `make run-json`
 - **Fluxo KDE:** `make kde-dev` / `make kde-refresh`
@@ -32,34 +32,26 @@
 ## Estrutura de Diretórios
 
 - **Código principal:** `src/`
-- **Frontend KDE:** `plasma/`
-- **Instalação local KDE:** `install-kde.sh`
-- **Planos:** `.pi/plans/`
-- **Testes:** `tests/` (não encontrado); testes unitários embutidos em `src/`
+- **Testes:** `tests/` (não encontrado)
 
 ## Módulos
 
-- **`src/lib.rs`** — Expõe a API compartilhada para coleta única de métricas, serialização em JSON e constantes do serviço DBus.
-- **`src/main.rs`** — Entry point mínimo do binário; interpreta flags CLI (`--json`, `--dbus`, `--help`) e inicia o backend DBus por padrão.
-- **`src/monitor/models.rs`** — Modelos serializáveis de CPU, memória, disco, rede e sensores.
-- **`src/monitor/hwmon.rs`** — Leitura e normalização de sensores Linux via `/sys/class/hwmon`.
-- **`src/monitor/collector.rs`** — Coleta snapshots do sistema via `sysinfo` e compõe `SystemMetrics`.
-- **`src/dbus.rs`** — Implementa o backend DBus com `zbus`, mantendo um `SystemMonitor` compartilhado e expondo métricas em JSON para o frontend KDE.
-- **`plasma/contents/ui/`** — Frontend do Plasmoid KDE, com representações compacta/expandida, componentes reutilizáveis e tabs.
+- **`src/lib.rs`** — Expõe a API compartilhada para coleta de métricas, serialização em JSON e controle do teste de velocidade.
+- **`src/main.rs`** — Entry point do binário; interpreta `--dbus`, `--json` e `--help` e inicia o backend DBus por padrão.
+- **`src/dbus.rs`** — Publica a interface DBus `com.monitortray.Backend` e expõe métodos assíncronos para métricas e speed test.
+- **`src/monitor/`** — Concentra a coleta e modelagem de métricas do sistema, separando métricas rápidas e lentas.
+- **`src/speedtest.rs`** — Gerencia o teste manual de velocidade de rede com fallback entre `speedtest` e `speedtest-cli`.
 
 ## Arquitetura
 
-- **Estilo:** Flat modular com separação backend/frontend
-- **Descrição:** o módulo `monitor/` concentra a coleta e modelagem de métricas em submódulos (`models`, `hwmon`, `collector`). `lib.rs` fornece funções reutilizáveis para coleta/serialização. `dbus.rs` publica o backend em DBus, e `main.rs` atua apenas como launcher do binário. O frontend do produto fica no Plasmoid em `plasma/`, que consulta o backend via DBus.
+- **Estilo:** Backend DBus modular com frontend Plasmoid KDE
+- **Descrição:** `main.rs` atua como launcher CLI e delega ao serviço DBus em `dbus.rs`. `lib.rs` expõe funções reutilizáveis, `monitor/` coleta snapshots do sistema com cache e ciclos de atualização, e `speedtest.rs` executa testes de rede assíncronos consumidos pelo frontend Plasma.
 
 ## Testes
 
-- **Framework:** `cargo test` (testes unitários Rust)
-- **Diretório:** `src/` com módulos `#[cfg(test)]`; `tests/` ⚠️ não encontrado
+- **Framework:** `cargo test`
+- **Diretório:** `tests/` ⚠️ não encontrado; testes unitários embutidos em `src/`
 - **Executar todos:** `make test`
-- **Lint Rust:** `cargo clippy --all-targets --all-features -- -D warnings`
-- **Lint QML:** `make qml-lint`
-- **Validação adicional de runtime KDE:** `make kde-refresh` + teste manual do plasmoid no Plasma
 - **Com cobertura:** `(preencher manualmente)`
 
 ## Convenções de Código
@@ -70,7 +62,6 @@
 - **Docstrings / comentários:** Português brasileiro
 - **Identificadores (variáveis, funções, classes):** Inglês
 - Rust: módulos separados por arquivo, `struct`s serializáveis para snapshots de métricas e `Result` para erros recuperáveis
-- QML: preferir componentes pequenos e reutilizáveis em `plasma/contents/ui/components/`; tabs em `plasma/contents/ui/tabs/`
 
 ## Commits
 
@@ -92,11 +83,5 @@ Ou siga diretamente as regras em `.agents/skills/git-commit-push/SKILL.md`.
 | `plan`    | Cria planos detalhados em `.pi/plans/`         | escrita em .pi/plans/  |
 | `quality` | Auditoria de qualidade de código               | bash + leitura         |
 | `qa`      | Análise de bugs e edge cases                   | bash + leitura         |
-| `test`    | Cria e mantém testes automatizados             | escrita em `src/` e `tests/` |
+| `test`    | Cria e mantém testes automatizados             | escrita em tests/      |
 | `doc`     | Cria documentação técnica em `docs/`           | escrita em docs/       |
-
-## Skills locais
-
-| Skill | Função | Arquivo |
-|---|---|---|
-| `perf` | Analisa performance recorrente de backend Rust, DBus e frontend QML; prioriza gargalos, polling, subprocessos, serialização e redraw | `.agents/skills/perf/SKILL.md` |

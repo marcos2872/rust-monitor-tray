@@ -8,6 +8,10 @@ ColumnLayout {
     id: root
 
     property var networkMetrics: ({})
+    property var networkSpeedTestStatus: ({})
+    property string networkSpeedTestErrorMessage: ""
+    property var onStartNetworkSpeedTest: null
+    property var onCancelNetworkSpeedTest: null
     property var downloadHistory: ({})
     property var uploadHistory: ({})
     property real downloadRate: 0
@@ -50,6 +54,56 @@ ColumnLayout {
 
     function historyMaximum() {
         return Math.max(root.seriesMaximum(root.downloadHistory), root.seriesMaximum(root.uploadHistory), 1);
+    }
+
+    function speedTestIsRunning() {
+        return root.networkSpeedTestStatus && root.networkSpeedTestStatus.state === "running";
+    }
+
+    function speedTestStatusLabel() {
+        var status = root.networkSpeedTestStatus || {};
+        if (status.state === "running") {
+            if (status.phase === "preparing")
+                return "Preparando";
+            if (status.phase === "parsing")
+                return "Processando resultado";
+            return "Executando";
+        }
+        if (status.state === "success")
+            return "Concluído";
+        if (status.state === "cancelled")
+            return "Cancelado";
+        if (status.state === "error")
+            return "Erro";
+        return "Pronto";
+    }
+
+    function speedTestStatusColor() {
+        var status = root.networkSpeedTestStatus || {};
+        if (status.state === "success")
+            return theme.successColor;
+        if (status.state === "running")
+            return theme.warningColor;
+        if (status.state === "error")
+            return theme.dangerColor;
+        if (status.state === "cancelled")
+            return theme.systemColor;
+        return theme.networkColor;
+    }
+
+    function lastTestLabel() {
+        var status = root.networkSpeedTestStatus || {};
+        if (!status.finished_at_unix_ms)
+            return "nunca executado";
+        return new Date(status.finished_at_unix_ms).toLocaleTimeString(Qt.locale(), Locale.ShortFormat);
+    }
+
+    function compactServerLabel() {
+        var status = root.networkSpeedTestStatus || {};
+        var text = status.server_name ? status.server_name : "-";
+        if (status.server_location)
+            text += " · " + status.server_location;
+        return text;
     }
 
     Layout.fillWidth: true
@@ -118,6 +172,116 @@ ColumnLayout {
             maximumValue: root.historyMaximum()
             maxLabel: theme.fmtRate(root.historyMaximum())
             minLabel: "0 B/s"
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Teste de velocidade"
+        subtitle: "Manual · pode consumir bastante banda"
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: theme.spacingM
+
+            HeroMetric {
+                Layout.fillWidth: true
+                label: "Download"
+                value: root.networkSpeedTestStatus && root.networkSpeedTestStatus.download_mbps !== null
+                    && root.networkSpeedTestStatus.download_mbps !== undefined
+                    ? Number(root.networkSpeedTestStatus.download_mbps).toFixed(1)
+                    : "-"
+                unit: root.networkSpeedTestStatus && root.networkSpeedTestStatus.download_mbps !== null
+                    && root.networkSpeedTestStatus.download_mbps !== undefined ? "Mbps" : ""
+                accentColor: theme.cpuColor
+                footnote: root.networkSpeedTestStatus && root.networkSpeedTestStatus.tool
+                    ? root.networkSpeedTestStatus.tool
+                    : "último teste"
+            }
+
+            HeroMetric {
+                Layout.fillWidth: true
+                label: "Upload"
+                value: root.networkSpeedTestStatus && root.networkSpeedTestStatus.upload_mbps !== null
+                    && root.networkSpeedTestStatus.upload_mbps !== undefined
+                    ? Number(root.networkSpeedTestStatus.upload_mbps).toFixed(1)
+                    : "-"
+                unit: root.networkSpeedTestStatus && root.networkSpeedTestStatus.upload_mbps !== null
+                    && root.networkSpeedTestStatus.upload_mbps !== undefined ? "Mbps" : ""
+                accentColor: theme.dangerColor
+                footnote: root.networkSpeedTestStatus && root.networkSpeedTestStatus.ping_ms !== null
+                    && root.networkSpeedTestStatus.ping_ms !== undefined
+                    ? Number(root.networkSpeedTestStatus.ping_ms).toFixed(1) + " ms"
+                    : "ping indisponível"
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: theme.spacingM
+
+            PlasmaComponents3.Button {
+                text: root.speedTestIsRunning() ? "Testando..." : "Iniciar teste"
+                enabled: !root.speedTestIsRunning()
+                onClicked: {
+                    if (root.onStartNetworkSpeedTest)
+                        root.onStartNetworkSpeedTest();
+                }
+            }
+
+            PlasmaComponents3.Button {
+                visible: root.speedTestIsRunning()
+                text: "Cancelar"
+                onClicked: {
+                    if (root.onCancelNetworkSpeedTest)
+                        root.onCancelNetworkSpeedTest();
+                }
+            }
+
+            PlasmaComponents3.Label {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignRight
+                elide: Text.ElideRight
+                color: root.speedTestStatusColor()
+                font.bold: true
+                text: root.speedTestStatusLabel()
+            }
+        }
+
+        MetricRow {
+            Layout.fillWidth: true
+            accentColor: theme.systemColor
+            label: "Status"
+            value: root.networkSpeedTestStatus && root.networkSpeedTestStatus.tool
+                ? root.speedTestStatusLabel() + " · " + root.networkSpeedTestStatus.tool
+                : root.speedTestStatusLabel()
+        }
+
+        MetricRow {
+            Layout.fillWidth: true
+            accentColor: theme.systemColor
+            label: "Último teste"
+            value: root.lastTestLabel()
+        }
+
+        PlasmaComponents3.Label {
+            Layout.fillWidth: true
+            text: root.compactServerLabel()
+            color: theme.subduedTextColor
+            font.pixelSize: 11
+            elide: Text.ElideRight
+            wrapMode: Text.NoWrap
+        }
+
+        PlasmaComponents3.Label {
+            visible: root.networkSpeedTestErrorMessage.length > 0
+                || (root.networkSpeedTestStatus && root.networkSpeedTestStatus.error)
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            color: theme.dangerColor
+            text: root.networkSpeedTestErrorMessage.length > 0
+                ? root.networkSpeedTestErrorMessage
+                : root.networkSpeedTestStatus.error
         }
     }
 

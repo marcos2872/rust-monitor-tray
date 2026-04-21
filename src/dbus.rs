@@ -4,12 +4,15 @@ use tokio::sync::Mutex;
 use zbus::{interface, ConnectionBuilder};
 
 use crate::{
-    collect_fast_metrics_json, collect_metrics_json, collect_slow_metrics_json,
-    monitor::SystemMonitor, DBUS_OBJECT_PATH, DBUS_SERVICE_NAME,
+    cancel_network_speed_test, collect_fast_metrics_json, collect_metrics_json,
+    collect_slow_metrics_json, get_network_speed_test_status_json,
+    monitor::SystemMonitor, speedtest::NetworkSpeedTestManager, start_network_speed_test,
+    DBUS_OBJECT_PATH, DBUS_SERVICE_NAME,
 };
 
 pub struct MetricsBackend {
     monitor: Mutex<SystemMonitor>,
+    speed_test: NetworkSpeedTestManager,
 }
 
 impl Default for MetricsBackend {
@@ -22,6 +25,7 @@ impl MetricsBackend {
     pub fn new() -> Self {
         Self {
             monitor: Mutex::new(SystemMonitor::new()),
+            speed_test: NetworkSpeedTestManager::new(),
         }
     }
 }
@@ -49,6 +53,20 @@ impl MetricsBackend {
     async fn slow_metrics_json(&self) -> zbus::fdo::Result<String> {
         let mut monitor = self.monitor.lock().await;
         collect_slow_metrics_json(&mut monitor)
+            .await
+            .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))
+    }
+
+    async fn start_network_speed_test(&self) -> zbus::fdo::Result<bool> {
+        Ok(start_network_speed_test(&self.speed_test).await)
+    }
+
+    async fn cancel_network_speed_test(&self) -> zbus::fdo::Result<bool> {
+        Ok(cancel_network_speed_test(&self.speed_test).await)
+    }
+
+    async fn get_network_speed_test_status_json(&self) -> zbus::fdo::Result<String> {
+        get_network_speed_test_status_json(&self.speed_test)
             .await
             .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))
     }

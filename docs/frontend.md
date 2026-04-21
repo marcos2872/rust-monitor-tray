@@ -164,9 +164,17 @@ Além disso, os históricos passaram a usar um buffer circular lógico, evitando
 
 - hero com download e upload instantâneos;
 - histórico separado de download e upload;
+- card de **teste de velocidade manual** com botão de iniciar/cancelar;
 - details com as interfaces mais ativas;
 - exibe `gateway_ip` e `gateway_latency_ms` quando disponíveis;
 - usa cor dinâmica para latência: verde, amarelo ou vermelho conforme o valor.
+
+O speed test usa um fluxo separado do polling normal:
+
+- `StartNetworkSpeedTest` para iniciar;
+- `GetNetworkSpeedTestStatusJson` para consultar estado;
+- `CancelNetworkSpeedTest` para cancelar;
+- timer dedicado de `1000 ms` no frontend apenas enquanto o teste estiver em execução.
 
 ### Sensors — `SensorsTab.qml`
 
@@ -224,4 +232,5 @@ O frontend mantém apenas lógica de apresentação e derivação leve. Com as m
 - o polling deixou de usar subprocesso `gdbus call` e passou a usar cliente DBus persistente assíncrono;
 - o caminho quente passou a consumir payload DBus reduzido (`FastMetricsJson`);
 - o estado QML deixou de ser substituído como um objeto monolítico;
-- os históricos deixaram de copiar arrays inteiros em cada amostra.
+- os históricos deixaram de copiar arrays inteiros em cada amostra;
+- o teste manual de velocidade foi isolado em um fluxo DBus próprio, fora do polling contínuo.

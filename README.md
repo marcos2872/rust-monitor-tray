@@ -22,8 +22,16 @@
 curl -fsSL https://raw.githubusercontent.com/marcos2872/rust-monitor-tray/main/install.sh | sh
 ```
 
+Para instalar também a dependência opcional do **teste manual de velocidade**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/marcos2872/rust-monitor-tray/main/install.sh | sh -s -- --with-speedtest
+```
+
 > Não requer Rust instalado. Baixa o binário pré-compilado da última release.
 >
 > **Requisitos:** KDE Plasma, `kpackagetool6`, `systemctl --user`, `gdbus`
+>
+> **Opcional:** `speedtest` ou `speedtest-cli` para habilitar o teste manual de velocidade na aba Network.
 
 Para instalar a partir do código-fonte ou outras opções, consulte o [Wiki](../../wiki) ou o arquivo [`install-kde.sh`](install-kde.sh).

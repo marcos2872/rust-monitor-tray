@@ -67,6 +67,60 @@ pub struct NetworkInterface {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkSpeedTestState {
+    Idle,
+    Running,
+    Success,
+    Error,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkSpeedTestPhase {
+    Idle,
+    Preparing,
+    Running,
+    Parsing,
+    Done,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkSpeedTestStatus {
+    pub state: NetworkSpeedTestState,
+    pub phase: NetworkSpeedTestPhase,
+    pub tool: Option<String>,
+    pub ping_ms: Option<f32>,
+    pub download_mbps: Option<f32>,
+    pub upload_mbps: Option<f32>,
+    pub server_name: Option<String>,
+    pub server_location: Option<String>,
+    pub started_at_unix_ms: Option<u64>,
+    pub finished_at_unix_ms: Option<u64>,
+    pub error: Option<String>,
+}
+
+impl Default for NetworkSpeedTestStatus {
+    fn default() -> Self {
+        Self {
+            state: NetworkSpeedTestState::Idle,
+            phase: NetworkSpeedTestPhase::Idle,
+            tool: None,
+            ping_ms: None,
+            download_mbps: None,
+            upload_mbps: None,
+            server_name: None,
+            server_location: None,
+            started_at_unix_ms: None,
+            finished_at_unix_ms: None,
+            error: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemperatureSensor {
     pub label: String,
     pub chip: String,

@@ -10,6 +10,7 @@ SERVICE_DIR="${HOME}/.config/systemd/user"
 SERVICE_PATH="${SERVICE_DIR}/${APP_NAME}.service"
 RELOAD_PLASMA=1
 PREBUILT_BINARY=""  # caminho para binário pré-compilado (opcional)
+INSTALL_SPEEDTEST=0
 
 usage() {
   cat <<EOF
@@ -20,10 +21,52 @@ Uso:
 
 Opções:
   --binary PATH        Usa binário pré-compilado em vez de rodar cargo build
+  --with-speedtest     Instala também a dependência opcional speedtest-cli
   --no-plasma-reload   Não reinicia o plasmashell ao final
   --bin-dir DIR        Diretório de instalação do binário (padrão: ~/.local/bin)
   -h, --help           Exibe esta ajuda
 EOF
+}
+
+print_speedtest_hint() {
+  if command -v speedtest >/dev/null 2>&1 || command -v speedtest-cli >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "ℹ️  Recurso opcional: teste manual de velocidade"
+  if command -v dnf >/dev/null 2>&1; then
+    echo "   Para habilitar: sudo dnf install speedtest-cli"
+  elif command -v apt-get >/dev/null 2>&1; then
+    echo "   Para habilitar: sudo apt-get update && sudo apt-get install -y speedtest-cli"
+  elif command -v pacman >/dev/null 2>&1; then
+    echo "   Para habilitar: sudo pacman -Sy --noconfirm speedtest-cli"
+  else
+    echo "   Instale 'speedtest' ou 'speedtest-cli' manualmente para habilitar o recurso."
+  fi
+}
+
+install_speedtest_dependency() {
+  if command -v speedtest >/dev/null 2>&1 || command -v speedtest-cli >/dev/null 2>&1; then
+    echo "ℹ️  Dependência de speed test já encontrada."
+    return 0
+  fi
+
+  echo "🌐 Instalando dependência opcional do teste de velocidade..."
+  if command -v dnf >/dev/null 2>&1; then
+    require_command sudo
+    sudo dnf install -y speedtest-cli
+  elif command -v apt-get >/dev/null 2>&1; then
+    require_command sudo
+    sudo apt-get update
+    sudo apt-get install -y speedtest-cli
+  elif command -v pacman >/dev/null 2>&1; then
+    require_command sudo
+    sudo pacman -Sy --noconfirm speedtest-cli
+  else
+    echo "Aviso: não foi possível detectar um gerenciador de pacotes suportado para instalar speedtest-cli automaticamente." >&2
+    echo "Instale 'speedtest' ou 'speedtest-cli' manualmente depois da instalação." >&2
+    return 0
+  fi
 }
 
 require_command() {
@@ -68,6 +111,10 @@ while [[ $# -gt 0 ]]; do
       fi
       PREBUILT_BINARY="$2"
       shift 2
+      ;;
+    --with-speedtest)
+      INSTALL_SPEEDTEST=1
+      shift
       ;;
     --no-plasma-reload)
       RELOAD_PLASMA=0
@@ -137,6 +184,10 @@ elif command -v kbuildsycoca5 >/dev/null 2>&1; then
   kbuildsycoca5 --noincremental >/dev/null 2>&1 || true
 fi
 
+if [[ "$INSTALL_SPEEDTEST" -eq 1 ]]; then
+  install_speedtest_dependency
+fi
+
 echo "📝 Instalando serviço systemd do usuário em $SERVICE_PATH..."
 mkdir -p "$SERVICE_DIR"
 cat > "$SERVICE_PATH" <<EOF
@@ -176,3 +227,5 @@ Verificações úteis:
 Próximo passo no KDE:
 - Adicione o widget "Monitor Tray" ao painel pelo menu de widgets.
 EOF
+
+print_speedtest_hint

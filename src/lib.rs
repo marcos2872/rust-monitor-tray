@@ -1,9 +1,11 @@
 pub mod dbus;
 pub mod monitor;
+pub mod speedtest;
 
 use std::error::Error;
 
-use monitor::{FastMetrics, SlowMetrics, SystemMetrics, SystemMonitor};
+use monitor::{FastMetrics, NetworkSpeedTestStatus, SlowMetrics, SystemMetrics, SystemMonitor};
+use speedtest::NetworkSpeedTestManager;
 
 pub const DBUS_SERVICE_NAME: &str = "com.monitortray.Backend";
 pub const DBUS_OBJECT_PATH: &str = "/com/monitortray/Backend";
@@ -48,4 +50,24 @@ pub async fn collect_slow_metrics_json(
 pub async fn collect_metrics_once_json() -> Result<String, Box<dyn Error>> {
     let mut monitor = SystemMonitor::new();
     Ok(collect_metrics_json(&mut monitor).await?)
+}
+
+pub async fn start_network_speed_test(manager: &NetworkSpeedTestManager) -> bool {
+    manager.start().await
+}
+
+pub async fn cancel_network_speed_test(manager: &NetworkSpeedTestManager) -> bool {
+    manager.cancel().await
+}
+
+pub async fn get_network_speed_test_status(
+    manager: &NetworkSpeedTestManager,
+) -> NetworkSpeedTestStatus {
+    manager.get_status().await
+}
+
+pub async fn get_network_speed_test_status_json(
+    manager: &NetworkSpeedTestManager,
+) -> Result<String, serde_json::Error> {
+    serde_json::to_string(&get_network_speed_test_status(manager).await)
 }

@@ -38,6 +38,26 @@ Payload lento usado para métricas mais caras ou menos voláteis.
 
 ---
 
+## NetworkSpeedTestStatus
+
+Payload do fluxo manual de speed test exposto por `GetNetworkSpeedTestStatusJson`.
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `state` | `NetworkSpeedTestState` | `idle`, `running`, `success`, `error` ou `cancelled` |
+| `phase` | `NetworkSpeedTestPhase` | fase interna: `idle`, `preparing`, `running`, `parsing`, `done`, `cancelled` |
+| `tool` | `Option<String>` | CLI utilizada (`speedtest` ou `speedtest-cli`) |
+| `ping_ms` | `Option<f32>` | Ping do teste em milissegundos |
+| `download_mbps` | `Option<f32>` | Download em Mbps |
+| `upload_mbps` | `Option<f32>` | Upload em Mbps |
+| `server_name` | `Option<String>` | Nome do servidor do teste |
+| `server_location` | `Option<String>` | Localização/host do servidor |
+| `started_at_unix_ms` | `Option<u64>` | Início do teste em epoch ms |
+| `finished_at_unix_ms` | `Option<u64>` | Fim do teste em epoch ms |
+| `error` | `Option<String>` | Mensagem de erro amigável |
+
+---
+
 ## SystemMetrics
 
 Raiz do payload JSON completo legado.

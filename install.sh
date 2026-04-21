@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Monitor Tray — instalador one-liner (sem necessidade de Rust)
 # Uso: curl -fsSL https://raw.githubusercontent.com/marcos2872/rust-monitor-tray/main/install.sh | sh
+#       curl -fsSL https://raw.githubusercontent.com/marcos2872/rust-monitor-tray/main/install.sh | sh -s -- --with-speedtest
 set -euo pipefail
 
 REPO="marcos2872/rust-monitor-tray"

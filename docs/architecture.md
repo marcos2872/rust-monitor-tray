@@ -184,6 +184,18 @@ Responsável por:
 - a lista é cacheada no backend e atualizada com frequência menor que CPU/rede/disco;
 - o frontend exibe os 15 processos com maior uso de CPU na aba **System**.
 
+### Ações manuais fora do polling
+
+Nem toda informação do widget entra no polling contínuo.
+
+O teste manual de velocidade da aba `Network` roda em um fluxo separado:
+
+- o usuário inicia explicitamente a ação;
+- o backend executa a CLI de speed test em background;
+- o frontend consulta apenas o estado desse teste enquanto ele estiver ativo.
+
+Isso evita inflar `FastMetricsJson` / `SlowMetricsJson` com uma operação pesada e rara.
+
 ### Cliente DBus persistente no frontend
 
 O frontend não usa mais subprocessos `gdbus call` para cada amostra.

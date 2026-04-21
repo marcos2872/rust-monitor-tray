@@ -40,7 +40,7 @@ Widget para o painel do KDE Plasma que exibe métricas do sistema em tempo real.
 | **RAM** | RAM usada/total, swap e histórico |
 | **GPU** | Uso, VRAM, clocks, temperatura, potência e fan da GPU (RPM e duty% quando disponível) |
 | **Disk** | Uso por partição, I/O de leitura/escrita em tempo real e histórico |
-| **Network** | Download/upload instantâneo, histórico, interfaces, gateway padrão e latência |
+| **Network** | Download/upload instantâneo, histórico, interfaces, gateway padrão, latência e teste manual de velocidade |
 | **Sensors** | Temperaturas por chip, fans, tensão, corrente e potência |
 | **System** | Hostname, kernel, load average e top processos por CPU |
 

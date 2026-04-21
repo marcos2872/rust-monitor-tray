@@ -20,6 +20,9 @@ O backend é um binário Rust que coleta métricas do sistema Linux e as expõe 
 | `GetMetricsJson` | `String` (JSON) | Snapshot completo legado/compatibilidade |
 | `FastMetricsJson` | `String` (JSON) | Snapshot rápido: CPU, memória, disco, rede, uptime e load average |
 | `SlowMetricsJson` | `String` (JSON) | Snapshot lento: sensores, GPUs, top processos e `system_info` |
+| `StartNetworkSpeedTest` | `bool` | Inicia um teste manual de velocidade; retorna `false` se já houver um em andamento |
+| `CancelNetworkSpeedTest` | `bool` | Solicita cancelamento do teste em andamento |
+| `GetNetworkSpeedTestStatusJson` | `String` (JSON) | Retorna o estado atual do teste manual de velocidade |
 
 **Exemplo de chamada manual:**
 
@@ -138,6 +141,22 @@ Valores em GB (`bytes / 1024³`):
 - `ping_host()` executa `ping` via `tokio::process::Command`;
 - `tokio::time::timeout()` evita bloquear o ciclo do backend;
 - os valores ficam cacheados e são reaproveitados até a próxima medição.
+
+### Teste manual de velocidade
+
+O speed test não entra em `FastMetricsJson` nem `SlowMetricsJson`.
+
+Ele roda em um fluxo separado do DBus para não inflar o payload quente e não interferir no polling contínuo do widget.
+
+Características da implementação:
+
+- execução manual, iniciada pelo usuário na aba `Network`;
+- subprocesso assíncrono com timeout total de `45s`;
+- tentativa prioritária de `speedtest --accept-license --accept-gdpr --format=json`;
+- fallback para `speedtest-cli --json` quando o binário principal não existe;
+- apenas um teste por vez;
+- estado consultável por `GetNetworkSpeedTestStatusJson`;
+- cancelamento via `CancelNetworkSpeedTest`.
 
 ### Sensores — `/sys/class/hwmon` + fallback de `sysinfo::Components`
 

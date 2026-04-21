@@ -30,6 +30,10 @@ Item {
     property var topProcesses: []
     property int uptime: 0
     property var loadAverage: [0, 0, 0]
+    property var networkSpeedTestStatus: ({})
+    property string networkSpeedTestErrorMessage: ""
+    property var onStartNetworkSpeedTest: null
+    property var onCancelNetworkSpeedTest: null
     property string errorMessage: ""
     property var cpuHistory: ({})
     property var memoryHistory: ({})
@@ -190,6 +194,10 @@ Item {
         NetworkTab {
             width: scrollView.availableWidth
             networkMetrics: root.networkMetrics
+            networkSpeedTestStatus: root.networkSpeedTestStatus
+            networkSpeedTestErrorMessage: root.networkSpeedTestErrorMessage
+            onStartNetworkSpeedTest: root.onStartNetworkSpeedTest
+            onCancelNetworkSpeedTest: root.onCancelNetworkSpeedTest
             downloadHistory: root.networkDownloadHistory
             uploadHistory: root.networkUploadHistory
             downloadRate: root.networkDownloadRate

@@ -123,10 +123,12 @@ Quando alterar métricas recentes, vale validar manualmente também:
 - polling DBus rápido no popup expandido e no modo compacto;
 - polling DBus lento para sensores/GPU/processos quando expandido;
 - fallback para `GetMetricsJson` quando o backend ainda estiver em versão antiga;
+- timer separado de status para o teste manual de velocidade na aba `Network`;
 - reconexão automática quando o backend DBus sobe/para;
 
 - `top_processes` na aba **System**;
 - `gateway_ip` e `gateway_latency_ms` na aba **Network**;
+- teste manual de velocidade na aba **Network** (requer `speedtest` ou `speedtest-cli` instalado no sistema);
 - `fan_duty_percent` na aba **GPU**;
 - `hottest_cpu_celsius` no hero da aba **CPU**.
 

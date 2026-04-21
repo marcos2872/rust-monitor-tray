@@ -42,6 +42,20 @@ PlasmoidItem {
     property var topProcesses: []
     property int uptime: 0
     property var loadAverage: [0, 0, 0]
+    property var networkSpeedTestStatus: ({
+        state: "idle",
+        phase: "idle",
+        tool: null,
+        ping_ms: null,
+        download_mbps: null,
+        upload_mbps: null,
+        server_name: null,
+        server_location: null,
+        started_at_unix_ms: null,
+        finished_at_unix_ms: null,
+        error: null
+    })
+    property string networkSpeedTestErrorMessage: ""
     property string errorMessage: ""
 
     readonly property int expandedSampleIntervalMs: 1500
@@ -90,6 +104,10 @@ PlasmoidItem {
         topProcesses: root.topProcesses
         uptime: root.uptime
         loadAverage: root.loadAverage
+        networkSpeedTestStatus: root.networkSpeedTestStatus
+        networkSpeedTestErrorMessage: root.networkSpeedTestErrorMessage
+        onStartNetworkSpeedTest: root.startNetworkSpeedTest
+        onCancelNetworkSpeedTest: root.cancelNetworkSpeedTest
         errorMessage: root.errorMessage
         cpuHistory: root.cpuHistory
         memoryHistory: root.memoryHistory
@@ -356,10 +374,102 @@ PlasmoidItem {
         }, root.handleSlowDbusSuccess, root.handleSlowDbusError);
     }
 
+    function speedTestIsRunning() {
+        return root.networkSpeedTestStatus
+            && root.networkSpeedTestStatus.state === "running";
+    }
+
+    function updateSpeedTestTimer() {
+        speedTestStatusTimer.running = root.speedTestIsRunning();
+    }
+
+    function applyNetworkSpeedTestStatus(jsonText) {
+        root.networkSpeedTestStatus = JSON.parse(jsonText);
+        root.networkSpeedTestErrorMessage = "";
+        root.updateSpeedTestTimer();
+    }
+
+    function fetchNetworkSpeedTestStatus() {
+        if (!backendWatcher.registered)
+            return;
+
+        DBus.SessionBus.asyncCall({
+            service: root.dbusService,
+            path: root.dbusPath,
+            iface: root.dbusInterface,
+            member: "GetNetworkSpeedTestStatusJson",
+            arguments: []
+        }, function(result) {
+            try {
+                root.applyNetworkSpeedTestStatus(root.extractJsonPayload(result));
+            } catch (error) {
+                root.networkSpeedTestErrorMessage = "Falha ao processar status do teste de velocidade: " + error;
+            }
+        }, function(error) {
+            if (error && error.message)
+                root.networkSpeedTestErrorMessage = error.message;
+            else
+                root.networkSpeedTestErrorMessage = "Falha ao consultar status do teste de velocidade";
+        });
+    }
+
+    function startNetworkSpeedTest() {
+        if (!backendWatcher.registered) {
+            root.networkSpeedTestErrorMessage = "Backend DBus indisponível. Rode: cargo run -- --dbus";
+            return;
+        }
+
+        DBus.SessionBus.asyncCall({
+            service: root.dbusService,
+            path: root.dbusPath,
+            iface: root.dbusInterface,
+            member: "StartNetworkSpeedTest",
+            arguments: []
+        }, function(result) {
+            var started = root.extractJsonPayload(result);
+            if (String(started).toLowerCase() === "true") {
+                root.networkSpeedTestErrorMessage = "";
+                root.fetchNetworkSpeedTestStatus();
+            } else {
+                root.fetchNetworkSpeedTestStatus();
+                root.networkSpeedTestErrorMessage = "Já existe um teste de velocidade em andamento";
+            }
+        }, function(error) {
+            if (error && error.message)
+                root.networkSpeedTestErrorMessage = error.message;
+            else
+                root.networkSpeedTestErrorMessage = "Falha ao iniciar teste de velocidade";
+        });
+    }
+
+    function cancelNetworkSpeedTest() {
+        if (!backendWatcher.registered) {
+            root.networkSpeedTestErrorMessage = "Backend DBus indisponível. Rode: cargo run -- --dbus";
+            return;
+        }
+
+        DBus.SessionBus.asyncCall({
+            service: root.dbusService,
+            path: root.dbusPath,
+            iface: root.dbusInterface,
+            member: "CancelNetworkSpeedTest",
+            arguments: []
+        }, function() {
+            root.networkSpeedTestErrorMessage = "";
+            root.fetchNetworkSpeedTestStatus();
+        }, function(error) {
+            if (error && error.message)
+                root.networkSpeedTestErrorMessage = error.message;
+            else
+                root.networkSpeedTestErrorMessage = "Falha ao cancelar teste de velocidade";
+        });
+    }
+
     onExpandedChanged: {
         if (root.expanded) {
             root.fetchFastMetrics();
             root.fetchSlowMetrics(true);
+            root.fetchNetworkSpeedTestStatus();
         }
     }
 
@@ -373,6 +483,7 @@ PlasmoidItem {
                 root.errorMessage = "Backend DBus indisponível. Rode: cargo run -- --dbus";
             } else if (registered && (root.expanded || !root.cpuMetrics || root.cpuMetrics.name === "")) {
                 root.fetchFastMetrics();
+                root.fetchNetworkSpeedTestStatus();
                 if (root.expanded)
                     root.fetchSlowMetrics(true);
             }
@@ -393,5 +504,14 @@ PlasmoidItem {
         running: root.expanded
         triggeredOnStart: false
         onTriggered: root.fetchSlowMetrics(false)
+    }
+
+    Timer {
+        id: speedTestStatusTimer
+        interval: 1000
+        repeat: true
+        running: false
+        triggeredOnStart: false
+        onTriggered: root.fetchNetworkSpeedTestStatus()
     }
 }
