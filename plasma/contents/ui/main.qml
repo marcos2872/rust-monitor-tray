@@ -62,6 +62,7 @@ PlasmoidItem {
     readonly property int compactSampleIntervalMs: 3000
     readonly property int sampleIntervalMs: root.expanded ? expandedSampleIntervalMs : compactSampleIntervalMs
     readonly property int slowExpandedSampleIntervalMs: 4500
+    readonly property int slowFetchDebounceMs: 250
     readonly property int historyDurationMs: 5 * 60 * 1000
     readonly property int historyLength: Math.max(2, Math.ceil(historyDurationMs / expandedSampleIntervalMs))
     readonly property string dbusService: "com.monitortray.Backend"
@@ -86,6 +87,7 @@ PlasmoidItem {
     property bool fastFetchInProgress: false
     property bool slowFetchInProgress: false
     property bool preferSplitDbus: true
+    property bool delayedSlowFetchForce: false
 
     preferredRepresentation: compactRepresentation
     compactRepresentation: CompactRepresentation {
@@ -374,6 +376,18 @@ PlasmoidItem {
         }, root.handleSlowDbusSuccess, root.handleSlowDbusError);
     }
 
+    function scheduleSlowMetrics(force) {
+        if (!root.preferSplitDbus)
+            return;
+
+        if (!root.expanded && !force)
+            return;
+
+        root.delayedSlowFetchForce = force;
+        delayedSlowFetchTimer.stop();
+        delayedSlowFetchTimer.start();
+    }
+
     function speedTestIsRunning() {
         return root.networkSpeedTestStatus
             && root.networkSpeedTestStatus.state === "running";
@@ -468,8 +482,10 @@ PlasmoidItem {
     onExpandedChanged: {
         if (root.expanded) {
             root.fetchFastMetrics();
-            root.fetchSlowMetrics(true);
+            root.scheduleSlowMetrics(true);
             root.fetchNetworkSpeedTestStatus();
+        } else {
+            delayedSlowFetchTimer.stop();
         }
     }
 
@@ -485,7 +501,7 @@ PlasmoidItem {
                 root.fetchFastMetrics();
                 root.fetchNetworkSpeedTestStatus();
                 if (root.expanded)
-                    root.fetchSlowMetrics(true);
+                    root.scheduleSlowMetrics(true);
             }
         }
     }
@@ -496,6 +512,14 @@ PlasmoidItem {
         running: true
         triggeredOnStart: true
         onTriggered: root.fetchFastMetrics()
+    }
+
+    Timer {
+        id: delayedSlowFetchTimer
+        interval: root.slowFetchDebounceMs
+        repeat: false
+        running: false
+        onTriggered: root.fetchSlowMetrics(root.delayedSlowFetchForce)
     }
 
     Timer {

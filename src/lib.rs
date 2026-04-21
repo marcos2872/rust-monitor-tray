@@ -22,7 +22,7 @@ pub async fn collect_fast_metrics(monitor: &mut SystemMonitor) -> FastMetrics {
 }
 
 pub async fn collect_slow_metrics(monitor: &mut SystemMonitor) -> SlowMetrics {
-    monitor.refresh_slow_metrics(true).await;
+    monitor.refresh_slow_metrics(false).await;
     monitor.get_slow_metrics()
 }
 

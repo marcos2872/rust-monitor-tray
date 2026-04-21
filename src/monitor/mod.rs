@@ -113,6 +113,9 @@ mod tests {
             sensor_cycle: 0,
             process_cycle: 0,
             cpu_frequency_cycle: 0,
+            last_gpu_refresh: None,
+            last_sensor_refresh: None,
+            last_process_refresh: None,
         };
 
         let cpu = monitor.get_cpu_metrics();
@@ -151,6 +154,9 @@ mod tests {
             sensor_cycle: 0,
             process_cycle: 0,
             cpu_frequency_cycle: 0,
+            last_gpu_refresh: None,
+            last_sensor_refresh: None,
+            last_process_refresh: None,
         };
 
         let memory = monitor.get_memory_metrics();

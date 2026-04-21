@@ -19,10 +19,13 @@ const TOP_PROCESSES: usize = 15;
 const LATENCY_INTERVAL_CYCLES: u32 = 7;
 /// Atualiza GPU com menor frequência para evitar scan de DRM e `nvidia-smi` em todo ciclo.
 const GPU_INTERVAL_CYCLES: u32 = 3;
+const GPU_MAX_AGE: std::time::Duration = std::time::Duration::from_millis(4500);
 /// Atualiza sensores com menor frequência, sem perder responsividade percebida.
 const SENSOR_INTERVAL_CYCLES: u32 = 2;
+const SENSOR_MAX_AGE: std::time::Duration = std::time::Duration::from_millis(3000);
 /// Atualiza processos com menor frequência, reduzindo custo de `/proc/<pid>`.
 const PROCESS_INTERVAL_CYCLES: u32 = 2;
+const PROCESS_MAX_AGE: std::time::Duration = std::time::Duration::from_millis(3000);
 /// Frequência muda pouco; não precisa ser atualizada em todo tick.
 const CPU_FREQUENCY_INTERVAL_CYCLES: u32 = 10;
 
@@ -205,6 +208,12 @@ fn should_refresh_every(counter: &mut u32, interval_cycles: u32) -> bool {
     }
 }
 
+fn refresh_due_by_age(last_refresh: Option<Instant>, max_age: std::time::Duration) -> bool {
+    last_refresh
+        .map(|instant| instant.elapsed() >= max_age)
+        .unwrap_or(true)
+}
+
 
 // ---------------------------------------------------------------------------
 // SystemMonitor
@@ -231,6 +240,9 @@ pub struct SystemMonitor {
     pub(crate) sensor_cycle: u32,
     pub(crate) process_cycle: u32,
     pub(crate) cpu_frequency_cycle: u32,
+    pub(crate) last_gpu_refresh: Option<Instant>,
+    pub(crate) last_sensor_refresh: Option<Instant>,
+    pub(crate) last_process_refresh: Option<Instant>,
 }
 
 impl Default for SystemMonitor {
@@ -258,6 +270,9 @@ impl SystemMonitor {
             sensor_cycle: 0,
             process_cycle: 0,
             cpu_frequency_cycle: 0,
+            last_gpu_refresh: None,
+            last_sensor_refresh: None,
+            last_process_refresh: None,
         }
     }
 
@@ -316,12 +331,15 @@ impl SystemMonitor {
     pub async fn refresh_slow_metrics(&mut self, force: bool) {
         let refresh_gpus = force
             || self.cached_gpus.is_empty()
+            || refresh_due_by_age(self.last_gpu_refresh, GPU_MAX_AGE)
             || should_refresh_every(&mut self.gpu_cycle, GPU_INTERVAL_CYCLES);
         let refresh_sensors = force
             || self.cached_sensors.is_none()
+            || refresh_due_by_age(self.last_sensor_refresh, SENSOR_MAX_AGE)
             || should_refresh_every(&mut self.sensor_cycle, SENSOR_INTERVAL_CYCLES);
         let refresh_processes = force
             || self.cached_top_processes.is_none()
+            || refresh_due_by_age(self.last_process_refresh, PROCESS_MAX_AGE)
             || should_refresh_every(&mut self.process_cycle, PROCESS_INTERVAL_CYCLES);
 
         if refresh_processes {
@@ -337,15 +355,18 @@ impl SystemMonitor {
                 process_refresh_kind_after(),
             );
             self.cached_top_processes = Some(self.collect_top_processes());
+            self.last_process_refresh = Some(Instant::now());
         }
 
         if refresh_sensors {
             self.components.refresh(false);
             self.cached_sensors = Some(self.collect_sensor_metrics());
+            self.last_sensor_refresh = Some(Instant::now());
         }
 
         if refresh_gpus {
             self.cached_gpus = super::gpu::collect_gpu_metrics().await;
+            self.last_gpu_refresh = Some(Instant::now());
         }
     }
 
