@@ -7,8 +7,8 @@ use sysinfo::{Components, Disks, Networks, System};
 
 use super::hwmon::{collect_hwmon_metrics_from_path, HWMON_BASE_PATH};
 use super::{
-    CpuMetrics, DiskInfo, DiskMetrics, MemoryMetrics, NetworkInterface, NetworkMetrics,
-    SensorMetrics, SystemInfo, SystemMetrics, TemperatureSensor,
+    CpuMetrics, DiskInfo, DiskMetrics, GpuInfo, MemoryMetrics, NetworkInterface,
+    NetworkMetrics, SensorMetrics, SystemInfo, SystemMetrics, TemperatureSensor,
 };
 
 const BYTES_TO_GB: f64 = 1024.0 * 1024.0 * 1024.0;
@@ -194,6 +194,8 @@ pub struct SystemMonitor {
     pub(crate) cpu_steal_percent: f32,
     pub(crate) disk_read_rates: HashMap<String, u64>,
     pub(crate) disk_write_rates: HashMap<String, u64>,
+    /// Métricas de GPUs detectadas na última atualização.
+    pub(crate) cached_gpus: Vec<GpuInfo>,
 }
 
 impl Default for SystemMonitor {
@@ -218,6 +220,7 @@ impl SystemMonitor {
             cpu_steal_percent:  0.0,
             disk_read_rates:    HashMap::new(),
             disk_write_rates:   HashMap::new(),
+            cached_gpus:        vec![],
         }
     }
 
@@ -258,6 +261,9 @@ impl SystemMonitor {
             compute_disk_io_rates(&disk_io_before, &disk_io_after, elapsed_secs);
         self.disk_read_rates  = read_rates;
         self.disk_write_rates = write_rates;
+
+        // Coleta GPU (AMD via sysfs, NVIDIA via nvidia-smi, Intel via sysfs)
+        self.cached_gpus = super::gpu::collect_gpu_metrics().await;
     }
 
     pub fn get_cpu_metrics(&self) -> CpuMetrics {
@@ -411,6 +417,7 @@ impl SystemMonitor {
             disk:    self.get_disk_metrics(),
             network: self.get_network_metrics(),
             sensors: self.get_sensor_metrics(),
+            gpus:    self.cached_gpus.clone(),
             system_info: SystemInfo {
                 hostname:       System::host_name().unwrap_or_else(|| "unknown".to_string()),
                 os_name:        System::name().unwrap_or_else(|| "Linux".to_string()),

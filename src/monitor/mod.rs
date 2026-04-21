@@ -1,12 +1,13 @@
 mod collector;
+pub(crate) mod gpu;
 mod hwmon;
 mod models;
 
 pub use collector::SystemMonitor;
 pub use models::{
-    CpuMetrics, CurrentSensor, DiskInfo, DiskMetrics, FanSensor, MemoryMetrics,
-    NetworkInterface, NetworkMetrics, PowerSensor, SensorMetrics, SystemInfo,
-    SystemMetrics, TemperatureSensor, VoltageSensor,
+    CpuMetrics, CurrentSensor, DiskInfo, DiskMetrics, FanSensor, GpuInfo, GpuVendor,
+    MemoryMetrics, NetworkInterface, NetworkMetrics, PowerSensor, SensorMetrics,
+    SystemInfo, SystemMetrics, TemperatureSensor, VoltageSensor,
 };
 
 #[cfg(test)]
@@ -101,6 +102,7 @@ mod tests {
             cpu_steal_percent: 0.0,
             disk_read_rates: std::collections::HashMap::new(),
             disk_write_rates: std::collections::HashMap::new(),
+            cached_gpus: vec![],
         };
 
         let cpu = monitor.get_cpu_metrics();
@@ -129,6 +131,7 @@ mod tests {
             cpu_steal_percent: 0.0,
             disk_read_rates: std::collections::HashMap::new(),
             disk_write_rates: std::collections::HashMap::new(),
+            cached_gpus: vec![],
         };
 
         let memory = monitor.get_memory_metrics();

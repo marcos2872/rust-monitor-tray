@@ -33,6 +33,7 @@ PlasmaComponents3.ScrollView {
     property var diskWriteHistory: []
     property real diskReadRate: 0
     property real diskWriteRate: 0
+    property var gpuHistory: []
     property int currentTab: 0
 
     function isLoading() {
@@ -101,6 +102,7 @@ PlasmaComponents3.ScrollView {
                     PlasmaComponents3.TabButton { text: "Disk" }
                     PlasmaComponents3.TabButton { text: "Network" }
                     PlasmaComponents3.TabButton { text: "Sensors" }
+                    PlasmaComponents3.TabButton { text: "GPU" }
                     PlasmaComponents3.TabButton { text: "System" }
                 }
 
@@ -113,6 +115,7 @@ PlasmaComponents3.ScrollView {
                         : root.currentTab === 2 ? diskTabComponent
                         : root.currentTab === 3 ? networkTabComponent
                         : root.currentTab === 4 ? sensorsTabComponent
+                        : root.currentTab === 5 ? gpuTabComponent
                         : systemTabComponent
                 }
             }
@@ -174,6 +177,17 @@ PlasmaComponents3.ScrollView {
         SensorsTab {
             width: root.availableWidth
             metrics: root.metrics
+        }
+    }
+
+    Component {
+        id: gpuTabComponent
+
+        GpuTab {
+            width: root.availableWidth
+            metrics: root.metrics
+            gpuHistory: root.gpuHistory
+            historyDurationMs: root.historyDurationMs
         }
     }
 

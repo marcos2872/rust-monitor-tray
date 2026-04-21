@@ -121,12 +121,37 @@ pub struct SystemInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GpuVendor {
+    Amd,
+    Nvidia,
+    Intel,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpuInfo {
+    pub name: String,
+    pub vendor: GpuVendor,
+    pub usage_percent: Option<f32>,
+    pub vram_used_gb: Option<f64>,
+    pub vram_total_gb: Option<f64>,
+    pub vram_usage_percent: Option<f32>,
+    pub shader_clock_mhz: Option<u64>,
+    pub memory_clock_mhz: Option<u64>,
+    pub temperature_celsius: Option<f32>,
+    pub power_watts: Option<f32>,
+    pub fan_rpm: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
     pub cpu: CpuMetrics,
     pub memory: MemoryMetrics,
     pub disk: DiskMetrics,
     pub network: NetworkMetrics,
     pub sensors: SensorMetrics,
+    pub gpus: Vec<GpuInfo>,
     pub system_info: SystemInfo,
     pub uptime: u64,
     pub load_average: (f64, f64, f64),

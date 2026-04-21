@@ -33,6 +33,7 @@ QtObject {
     readonly property color swapColor: "#a78bfa"
     readonly property color diskColor: "#34d399"
     readonly property color networkColor: "#f59e0b"
+    readonly property color gpuColor: "#f97316"
     readonly property color systemColor: "#94a3b8"
     readonly property color trackColor: "#475569"
     readonly property color successColor: "#22c55e"

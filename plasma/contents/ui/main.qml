@@ -35,6 +35,7 @@ PlasmoidItem {
             architecture: "",
             process_count: 0
         },
+        gpus: [],
         uptime: 0,
         load_average: [0, 0, 0]
     })
@@ -49,6 +50,7 @@ PlasmoidItem {
     property var diskWriteHistory: []
     property real diskReadRate: 0
     property real diskWriteRate: 0
+    property var gpuHistory: []
     property real lastNetworkTimestamp: 0
     property real previousBytesReceived: -1
     property real previousBytesTransmitted: -1
@@ -75,6 +77,7 @@ PlasmoidItem {
         diskWriteHistory: root.diskWriteHistory
         diskReadRate: root.diskReadRate
         diskWriteRate: root.diskWriteRate
+        gpuHistory: root.gpuHistory
         historyDurationMs: root.historyDurationMs
     }
 
@@ -140,6 +143,8 @@ PlasmoidItem {
         root.diskWriteRate = parsed.disk ? (parsed.disk.total_write_bytes_per_sec || 0) : 0;
         root.diskReadHistory  = appendHistory(root.diskReadHistory,  root.diskReadRate);
         root.diskWriteHistory = appendHistory(root.diskWriteHistory, root.diskWriteRate);
+        var primaryGpu = parsed.gpus && parsed.gpus.length > 0 ? parsed.gpus[0] : null;
+        root.gpuHistory = appendPercentHistory(root.gpuHistory, primaryGpu ? (primaryGpu.usage_percent || 0) : 0);
         root.errorMessage = "";
     }
 
