@@ -555,21 +555,21 @@ fn create_status_icon(stats: &SystemMetrics) -> Result<String, Box<dyn std::erro
     use std::fs::OpenOptions;
     use std::io::Write;
 
-    let icon_width = 52;
-    let icon_height = 36;
-    let bar_max_width = 42;
-    let bar_height = 8;
+    let icon_width = 75;
+    let icon_height = 60;
+    let bar_max_width = 69;
+    let bar_height = 18;
     let cpu_width = icon_bar_height(stats.cpu.usage_percent, bar_max_width);
     let memory_width = icon_bar_height(stats.memory.usage_percent, bar_max_width);
 
     let svg_content = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
-<svg width=\"{icon_width}\" height=\"{icon_height}\" viewBox=\"0 0 52 36\" xmlns=\"http://www.w3.org/2000/svg\">\
-  <rect x=\"1\" y=\"1\" width=\"50\" height=\"34\" rx=\"8\" fill=\"#111827\" stroke=\"#334155\" stroke-width=\"1\"/>\
-  <rect x=\"5\" y=\"8\" width=\"42\" height=\"{bar_height}\" rx=\"4\" fill=\"#374151\"/>\
-  <rect x=\"5\" y=\"20\" width=\"42\" height=\"{bar_height}\" rx=\"4\" fill=\"#374151\"/>\
-  <rect x=\"5\" y=\"8\" width=\"{cpu_width}\" height=\"{bar_height}\" rx=\"4\" fill=\"{}\"/>\
-  <rect x=\"5\" y=\"20\" width=\"{memory_width}\" height=\"{bar_height}\" rx=\"4\" fill=\"{}\"/>\
+<svg width=\"{icon_width}\" height=\"{icon_height}\" viewBox=\"0 0 75 60\" xmlns=\"http://www.w3.org/2000/svg\">\
+  <rect x=\"0\" y=\"0\" width=\"75\" height=\"60\" rx=\"14\" fill=\"#0f172a\"/>\
+  <rect x=\"3\" y=\"8\" width=\"69\" height=\"{bar_height}\" rx=\"7\" fill=\"#1f2937\"/>\
+  <rect x=\"3\" y=\"34\" width=\"69\" height=\"{bar_height}\" rx=\"7\" fill=\"#1f2937\"/>\
+  <rect x=\"3\" y=\"8\" width=\"{cpu_width}\" height=\"{bar_height}\" rx=\"7\" fill=\"{}\"/>\
+  <rect x=\"3\" y=\"34\" width=\"{memory_width}\" height=\"{bar_height}\" rx=\"7\" fill=\"{}\"/>\
 </svg>",
         cpu_icon_color(),
         memory_icon_color()
@@ -840,11 +840,11 @@ mod tests {
         let icon_path = create_status_icon(&stats).expect("deve criar ícone SVG");
         let content = fs::read_to_string(&icon_path).expect("deve ler SVG gerado");
 
-        assert!(content.contains("width=\"52\""));
-        assert!(content.contains("height=\"36\""));
-        assert!(content.contains("stroke=\"#334155\""));
-        assert!(content.contains("x=\"5\" y=\"8\" width=\"42\" height=\"8\""));
-        assert!(content.contains("x=\"5\" y=\"20\" width=\"42\" height=\"8\""));
+        assert!(content.contains("width=\"75\""));
+        assert!(content.contains("height=\"60\""));
+        assert!(content.contains("viewBox=\"0 0 75 60\""));
+        assert!(content.contains("x=\"3\" y=\"8\" width=\"69\" height=\"18\""));
+        assert!(content.contains("x=\"3\" y=\"34\" width=\"69\" height=\"18\""));
         assert!(!content.contains(">C</text>"));
         assert!(!content.contains(">R</text>"));
         assert!(content.contains("#60a5fa"));
