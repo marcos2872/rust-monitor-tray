@@ -7,18 +7,16 @@ CARGO := cargo
 CARGO_WATCH := $(CARGO) watch
 KPACKAGETOOL := $(shell command -v kpackagetool6 >/dev/null 2>&1 && echo kpackagetool6 || echo kpackagetool5)
 
-.PHONY: help build build-autostart test dev run run-json run-dbus check-tools check-watch check-kde-tools install-dev-tools plasmoid-install plasmoid-remove plasmoid-upgrade plasmoid-reload plasmoid-run kde-refresh kde-dev
+.PHONY: help build test dev run-json run-dbus check-tools check-watch check-kde-tools install-dev-tools plasmoid-install plasmoid-remove plasmoid-upgrade plasmoid-reload plasmoid-run kde-refresh kde-dev
 
 help:
 	@echo "Targets disponíveis:"
-	@echo "  make build            - Gera o pacote .deb sem autostart"
-	@echo "  make build-autostart  - Gera o pacote .deb com autostart global"
-	@echo "  make run              - Executa a UI legada GTK/AppIndicator"
+	@echo "  make build            - Compila o backend Rust em release"
 	@echo "  make run-json         - Imprime métricas em JSON"
 	@echo "  make run-dbus         - Inicia o backend DBus para o Plasmoid KDE"
 	@echo "  make kde-refresh      - Faz build, instala e recarrega o Plasmoid"
 	@echo "  make test             - Executa a suíte de testes"
-	@echo "  make dev              - Executa em modo dev com hot-reload via cargo-watch"
+	@echo "  make dev              - Hot-reload do backend DBus via cargo-watch"
 	@echo "  make plasmoid-install - Instala/atualiza o Plasmoid no Plasma"
 	@echo "  make plasmoid-remove  - Remove o Plasmoid do Plasma"
 	@echo "  make plasmoid-reload  - Reinicia o plasmashell"
@@ -57,15 +55,7 @@ check-kde-tools:
 	}
 
 build: check-tools
-	@chmod +x build.sh
-	@./build.sh
-
-build-autostart: check-tools
-	@chmod +x build-autostart.sh
-	@./build-autostart.sh
-
-run: check-tools
-	@$(CARGO) run
+	@$(CARGO) build --release
 
 run-json: check-tools
 	@$(CARGO) run -- --json
@@ -77,7 +67,7 @@ test: check-tools
 	@$(CARGO) test
 
 dev: check-watch
-	@$(CARGO_WATCH) -q -x run
+	@$(CARGO_WATCH) -q -x 'run -- --dbus'
 
 plasmoid-install: check-kde-tools
 	@$(KPACKAGETOOL) --type Plasma/Applet --upgrade $(PLASMOID_DIR) >/dev/null 2>&1 || \
