@@ -12,23 +12,6 @@ ColumnLayout {
     property real diskReadRate: 0
     property real diskWriteRate: 0
 
-    function fmtOne(value) {
-        if (value === undefined || value === null || isNaN(value)) return "0.0";
-        return Number(value).toFixed(1);
-    }
-
-    function fmtRate(value) {
-        if (value === undefined || value === null || isNaN(value)) return "0 B/s";
-        var units = ["B", "KB", "MB", "GB"];
-        var size  = Number(value);
-        var index = 0;
-        while (size >= 1024 && index < units.length - 1) {
-            size  /= 1024;
-            index += 1;
-        }
-        return size.toFixed(index === 0 ? 0 : 1) + " " + units[index] + "/s";
-    }
-
     function ioHistoryMaximum() {
         var maximum = 1;
         var i;
@@ -89,7 +72,7 @@ ColumnLayout {
             unit: "%"
             accentColor: theme.diskColor
             footnote: root.cachedPrimaryDisk
-                ? (root.fmtOne(root.cachedPrimaryDisk.used_space) + " de " + root.fmtOne(root.cachedPrimaryDisk.total_space) + " GB")
+                ? (theme.fmtOne(root.cachedPrimaryDisk.used_space) + " de " + theme.fmtOne(root.cachedPrimaryDisk.total_space) + " GB")
                 : "-"
         }
 
@@ -104,7 +87,7 @@ ColumnLayout {
             Layout.fillWidth: true
             accentColor: theme.successColor
             label: "Livre"
-            value: root.cachedPrimaryDisk ? root.fmtOne(root.cachedPrimaryDisk.available_space) + " GB" : "-"
+            value: root.cachedPrimaryDisk ? theme.fmtOne(root.cachedPrimaryDisk.available_space) + " GB" : "-"
         }
     }
 
@@ -121,45 +104,43 @@ ColumnLayout {
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Leitura"
-                value: root.fmtRate(root.diskReadRate)
+                value: theme.fmtRate(root.diskReadRate)
                 accentColor: theme.diskColor
             }
 
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Escrita"
-                value: root.fmtRate(root.diskWriteRate)
+                value: theme.fmtRate(root.diskWriteRate)
                 accentColor: theme.dangerColor
             }
         }
 
         SectionHeader {
             title: "Read"
-            subtitle: root.fmtRate(root.diskReadRate)
+            subtitle: theme.fmtRate(root.diskReadRate)
         }
 
         HistoryChart {
             Layout.fillWidth: true
             values: root.diskReadHistory
             strokeColor: theme.diskColor
-            fillColor: Qt.rgba(0.204, 0.827, 0.600, 0.18)
             maximumValue: root.ioHistoryMaximum()
-            maxLabel: root.fmtRate(root.ioHistoryMaximum())
+            maxLabel: theme.fmtRate(root.ioHistoryMaximum())
             minLabel: "0 B/s"
         }
 
         SectionHeader {
             title: "Write"
-            subtitle: root.fmtRate(root.diskWriteRate)
+            subtitle: theme.fmtRate(root.diskWriteRate)
         }
 
         HistoryChart {
             Layout.fillWidth: true
             values: root.diskWriteHistory
             strokeColor: theme.dangerColor
-            fillColor: Qt.rgba(0.937, 0.267, 0.267, 0.18)
             maximumValue: root.ioHistoryMaximum()
-            maxLabel: root.fmtRate(root.ioHistoryMaximum())
+            maxLabel: theme.fmtRate(root.ioHistoryMaximum())
             minLabel: "0 B/s"
         }
     }
@@ -189,8 +170,8 @@ ColumnLayout {
                     Layout.fillWidth: true
                     dense: true
                     accentColor: "transparent"
-                    label: root.fmtOne(modelData.used_space) + " de " + root.fmtOne(modelData.total_space) + " GB"
-                    value: root.fmtOne(modelData.available_space) + " GB livres"
+                    label: theme.fmtOne(modelData.used_space) + " de " + theme.fmtOne(modelData.total_space) + " GB"
+                    value: theme.fmtOne(modelData.available_space) + " GB livres"
                 }
             }
         }

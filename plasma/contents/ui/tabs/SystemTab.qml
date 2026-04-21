@@ -11,31 +11,6 @@ ColumnLayout {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    function fmtUptime(seconds) {
-        if (seconds === undefined || seconds === null || isNaN(seconds)) return "0m";
-        var total   = Number(seconds);
-        var days    = Math.floor(total / 86400);
-        var hours   = Math.floor((total % 86400) / 3600);
-        var minutes = Math.floor((total % 3600) / 60);
-        if (days > 0)  return days + "d " + hours + "h " + minutes + "m";
-        if (hours > 0) return hours + "h " + minutes + "m";
-        return minutes + "m";
-    }
-
-    function fmtOne(value) {
-        if (value === undefined || value === null || isNaN(value)) return "0.0";
-        return Number(value).toFixed(1);
-    }
-
-    function fmtBytes(value) {
-        if (value === undefined || value === null || isNaN(value)) return "0 B";
-        var units = ["B", "KB", "MB", "GB", "TB"];
-        var size  = Number(value);
-        var index = 0;
-        while (size >= 1024 && index < units.length - 1) { size /= 1024; index += 1; }
-        return size.toFixed(index === 0 ? 0 : 1) + " " + units[index];
-    }
-
     function sysInfo() {
         return metrics && metrics.system_info ? metrics.system_info : {};
     }
@@ -57,7 +32,7 @@ ColumnLayout {
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Uptime"
-                value: root.fmtUptime(metrics ? metrics.uptime : 0)
+                value: theme.fmtUptime(metrics ? metrics.uptime : 0)
                 accentColor: theme.systemColor
                 footnote: "desde o boot"
             }
@@ -179,7 +154,7 @@ ColumnLayout {
             accentColor: theme.memoryColor
             label: "RAM"
             value: metrics && metrics.memory
-                ? root.fmtOne(metrics.memory.used_memory) + " / " + root.fmtOne(metrics.memory.total_memory) + " GB"
+                ? theme.fmtOne(metrics.memory.used_memory) + " / " + theme.fmtOne(metrics.memory.total_memory) + " GB"
                 : "-"
         }
 
@@ -192,10 +167,10 @@ ColumnLayout {
 
         MetricRow {
             Layout.fillWidth: true
-            accentColor: "#a78bfa"
+            accentColor: theme.swapColor
             label: "Swap"
             value: metrics && metrics.memory
-                ? root.fmtOne(metrics.memory.used_swap) + " / " + root.fmtOne(metrics.memory.total_swap) + " GB"
+                ? theme.fmtOne(metrics.memory.used_swap) + " / " + theme.fmtOne(metrics.memory.total_swap) + " GB"
                 : "-"
         }
 
@@ -207,7 +182,7 @@ ColumnLayout {
             accentColor: theme.diskColor
             label: "Armazenamento"
             value: metrics && metrics.disk
-                ? root.fmtOne(metrics.disk.used_space) + " / " + root.fmtOne(metrics.disk.total_space) + " GB"
+                ? theme.fmtOne(metrics.disk.used_space) + " / " + theme.fmtOne(metrics.disk.total_space) + " GB"
                 : "-"
         }
 
@@ -230,7 +205,7 @@ ColumnLayout {
             accentColor: theme.cpuColor
             label: "↓ Recebido total"
             value: metrics && metrics.network
-                ? root.fmtBytes(metrics.network.total_bytes_received)
+                ? theme.fmtBytes(metrics.network.total_bytes_received)
                 : "-"
         }
 
@@ -239,7 +214,7 @@ ColumnLayout {
             accentColor: theme.dangerColor
             label: "↑ Enviado total"
             value: metrics && metrics.network
-                ? root.fmtBytes(metrics.network.total_bytes_transmitted)
+                ? theme.fmtBytes(metrics.network.total_bytes_transmitted)
                 : "-"
         }
 
@@ -249,10 +224,10 @@ ColumnLayout {
         MetricRow {
             Layout.fillWidth: true
             accentColor: {
-                var t = metrics && metrics.sensors
+                var tempCelsius = metrics && metrics.sensors
                     ? (metrics.sensors.hottest_temperature_celsius || 0) : 0;
-                if (t >= 85) return theme.dangerColor;
-                if (t >= 70) return theme.warningColor;
+                if (tempCelsius >= 85) return theme.dangerColor;
+                if (tempCelsius >= 70) return theme.warningColor;
                 return theme.successColor;
             }
             label: metrics && metrics.sensors && metrics.sensors.hottest_label

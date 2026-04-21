@@ -10,11 +10,6 @@ ColumnLayout {
     property var history: []
     property int historyDurationMs: 5 * 60 * 1000
 
-    function fmtOne(value) {
-        if (value === undefined || value === null || isNaN(value)) return "0.0";
-        return Number(value).toFixed(1);
-    }
-
     function historyWindowLabel() {
         return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
@@ -31,7 +26,7 @@ ColumnLayout {
         Layout.fillWidth: true
         hero: true
         title: "RAM"
-        subtitle: metrics && metrics.memory ? (root.fmtOne(metrics.memory.used_memory) + " / " + root.fmtOne(metrics.memory.total_memory) + " GB") : "Sem dados"
+        subtitle: metrics && metrics.memory ? (theme.fmtOne(metrics.memory.used_memory) + " / " + theme.fmtOne(metrics.memory.total_memory) + " GB") : "Sem dados"
 
         RowLayout {
             Layout.fillWidth: true
@@ -40,7 +35,7 @@ ColumnLayout {
             HeroMetric {
                 Layout.preferredWidth: 110
                 label: "Livre"
-                value: metrics && metrics.memory ? root.fmtOne(metrics.memory.available_memory) : "0.0"
+                value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.available_memory) : "0.0"
                 unit: "GB"
                 accentColor: theme.successColor
                 footnote: "disponível"
@@ -57,9 +52,9 @@ ColumnLayout {
             HeroMetric {
                 Layout.preferredWidth: 110
                 label: "Swap"
-                value: metrics && metrics.memory ? root.fmtOne(metrics.memory.used_swap) : "0.0"
+                value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.used_swap) : "0.0"
                 unit: "GB"
-                accentColor: "#a78bfa"
+                accentColor: theme.swapColor
                 footnote: metrics && metrics.memory && metrics.memory.total_swap > 0 ? Math.round(root.swapPercent()) + "% usado" : "sem swap"
             }
         }
@@ -74,7 +69,6 @@ ColumnLayout {
             Layout.fillWidth: true
             values: root.history
             strokeColor: theme.memoryColor
-            fillColor: Qt.rgba(0.753, 0.518, 0.988, 0.18)
             maximumValue: 100
             maxLabel: "100%"
             minLabel: "0%"
@@ -90,21 +84,21 @@ ColumnLayout {
             Layout.fillWidth: true
             accentColor: theme.memoryColor
             label: "Usada"
-            value: metrics && metrics.memory ? root.fmtOne(metrics.memory.used_memory) + " GB" : "-"
+            value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.used_memory) + " GB" : "-"
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.successColor
             label: "Livre"
-            value: metrics && metrics.memory ? root.fmtOne(metrics.memory.available_memory) + " GB" : "-"
+            value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.available_memory) + " GB" : "-"
         }
 
         MetricRow {
             Layout.fillWidth: true
-            accentColor: "#a78bfa"
+            accentColor: theme.swapColor
             label: "Swap"
-            value: metrics && metrics.memory ? root.fmtOne(metrics.memory.used_swap) + " / " + root.fmtOne(metrics.memory.total_swap) + " GB" : "-"
+            value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.used_swap) + " / " + theme.fmtOne(metrics.memory.total_swap) + " GB" : "-"
         }
     }
 

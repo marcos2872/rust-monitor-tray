@@ -52,6 +52,14 @@ ColumnLayout {
         return result;
     }
 
+    // Cor do indicador baseada na faixa de temperatura
+    function temperatureAccentColor(celsius) {
+        var tempCelsius = celsius || 0;
+        if (tempCelsius >= 85) return theme.dangerColor;
+        if (tempCelsius >= 70) return theme.warningColor;
+        return theme.successColor;
+    }
+
     function fansSorted() {
         var rows = metrics && metrics.sensors && metrics.sensors.fans ? metrics.sensors.fans.slice(0) : [];
         rows.sort(function(a, b) { return a.label.localeCompare(b.label); });
@@ -191,12 +199,7 @@ ColumnLayout {
                     delegate: MetricRow {
                         Layout.fillWidth: true
                         dense: true
-                        accentColor: {
-                            var t = modelData.temperature_celsius || 0;
-                            if (t >= 85) return theme.dangerColor;
-                            if (t >= 70) return theme.warningColor;
-                            return theme.successColor;
-                        }
+                        accentColor: root.temperatureAccentColor(modelData.temperature_celsius)
                         label: modelData.label
                         value: root.fmtTemp(modelData.temperature_celsius)
                     }

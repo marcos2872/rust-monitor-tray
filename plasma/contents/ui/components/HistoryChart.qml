@@ -8,7 +8,7 @@ Item {
 
     property var values: []
     property color strokeColor: "#60a5fa"
-    property color fillColor: Qt.rgba(0.376, 0.647, 0.98, 0.18)
+    property color fillColor: Qt.rgba(strokeColor.r, strokeColor.g, strokeColor.b, 0.18)
     property real minimumValue: 0
     property real maximumValue: -1
     property string maxLabel: ""

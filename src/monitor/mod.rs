@@ -55,6 +55,8 @@ mod tests {
         fs::write(hwmon0.join("in0_input"), "1200\n").expect("should write voltage");
         fs::write(hwmon0.join("curr1_input"), "2500\n").expect("should write current");
         fs::write(hwmon0.join("power1_input"), "65500000\n").expect("should write power");
+        fs::write(hwmon0.join("temp1_input"), "45000\n").expect("should write temp");
+        fs::write(hwmon0.join("temp1_label"), "CPU Core\n").expect("should write temp label");
 
         let metrics = collect_hwmon_metrics_from_path(&base);
 
@@ -77,6 +79,11 @@ mod tests {
         assert_eq!(metrics.powers.len(), 1);
         assert_eq!(metrics.powers[0].label, "nct6798: Power 1");
         assert!((metrics.powers[0].watts - 65.5).abs() < f32::EPSILON);
+
+        assert_eq!(metrics.temperatures.len(), 1);
+        assert_eq!(metrics.temperatures[0].chip, "nct6798");
+        assert_eq!(metrics.temperatures[0].label, "CPU Core");
+        assert!((metrics.temperatures[0].temperature_celsius - 45.0).abs() < 0.01);
 
         fs::remove_dir_all(base).expect("should clean fixture dir");
     }
@@ -215,6 +222,11 @@ mod tests {
         assert!(metrics.load_average.0.is_finite());
         assert!(metrics.load_average.1.is_finite());
         assert!(metrics.load_average.2.is_finite());
+        assert!(!metrics.system_info.hostname.is_empty());
+        assert!(!metrics.system_info.os_name.is_empty());
+        assert!(!metrics.system_info.kernel_version.is_empty());
+        assert!(!metrics.system_info.architecture.is_empty());
+        assert!(metrics.system_info.process_count > 0);
         assert!(metrics
             .sensors
             .temperatures

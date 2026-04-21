@@ -17,6 +17,7 @@ pub(crate) struct HwmonMetrics {
     pub(crate) powers: Vec<PowerSensor>,
 }
 
+/// Lê um arquivo texto, remove espaços nas extremidades e retorna `None` se vazio.
 fn read_trimmed(path: &Path) -> Option<String> {
     fs::read_to_string(path)
         .ok()
@@ -24,16 +25,20 @@ fn read_trimmed(path: &Path) -> Option<String> {
         .filter(|content| !content.is_empty())
 }
 
+/// Lê e converte o conteúdo de um arquivo para `u64`.
 fn read_u64(path: &Path) -> Option<u64> {
     read_trimmed(path)?.parse().ok()
 }
 
+/// Lê um valor numérico de um arquivo e divide por `scale` (ex.: milli → base).
 fn read_scaled_f32(path: &Path, scale: f32) -> Option<f32> {
     let value: f32 = read_trimmed(path)?.parse().ok()?;
     let scaled = value / scale;
     scaled.is_finite().then_some(scaled)
 }
 
+/// Extrai o índice numérico de um nome de arquivo de sensor.
+/// Exemplo: `parse_sensor_index("fan2_input", "fan", "_input")` → `Some("2")`.
 pub(crate) fn parse_sensor_index(file_name: &str, prefix: &str, suffix: &str) -> Option<String> {
     if !file_name.starts_with(prefix) || !file_name.ends_with(suffix) {
         return None;
@@ -47,6 +52,7 @@ pub(crate) fn parse_sensor_index(file_name: &str, prefix: &str, suffix: &str) ->
     Some(index.to_string())
 }
 
+/// Converte identificadores técnicos para exibição: underscores e hifens → espaços.
 fn prettify_identifier(value: &str) -> String {
     value
         .replace(['_', '-'], " ")
@@ -55,6 +61,7 @@ fn prettify_identifier(value: &str) -> String {
         .join(" ")
 }
 
+/// Retorna o nome legível do chip hwmon a partir do arquivo `name` do diretório.
 fn hwmon_chip_name(directory: &Path) -> String {
     if let Some(name) = read_trimmed(&directory.join("name")) {
         return prettify_identifier(&name);
@@ -67,6 +74,8 @@ fn hwmon_chip_name(directory: &Path) -> String {
         .unwrap_or_else(|| "hwmon".to_string())
 }
 
+/// Monta o rótulo completo de um sensor no formato `"chip: rótulo"` ou
+/// `"chip: TipoFallback índice"` quando não há arquivo `*_label`.
 fn hwmon_sensor_label(directory: &Path, prefix: &str, index: &str, fallback_name: &str) -> String {
     let chip_name = hwmon_chip_name(directory);
     let label_path = directory.join(format!("{prefix}{index}_label"));
@@ -82,6 +91,8 @@ fn hwmon_sensor_label(directory: &Path, prefix: &str, index: &str, fallback_name
     format!("{chip_name}: {fallback_name} {index}")
 }
 
+/// Coleta todas as métricas de sensores disponíveis em `base_path`.
+/// Lê temperatura, ventiladores, tensão, corrente e potência de cada chip hwmon.
 pub(crate) fn collect_hwmon_metrics_from_path(base_path: &Path) -> HwmonMetrics {
     let mut metrics = HwmonMetrics::default();
 

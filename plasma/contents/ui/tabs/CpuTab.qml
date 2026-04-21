@@ -15,17 +15,6 @@ ColumnLayout {
         return Math.round(Number(value)) + "%";
     }
 
-    function fmtUptime(seconds) {
-        if (seconds === undefined || seconds === null || isNaN(seconds)) return "0m";
-        var total = Number(seconds);
-        var days    = Math.floor(total / 86400);
-        var hours   = Math.floor((total % 86400) / 3600);
-        var minutes = Math.floor((total % 3600) / 60);
-        if (days > 0)  return days + "d " + hours + "h " + minutes + "m";
-        if (hours > 0) return hours + "h " + minutes + "m";
-        return minutes + "m";
-    }
-
     function historyWindowLabel() {
         return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
@@ -35,9 +24,9 @@ ColumnLayout {
         var sensors = metrics && metrics.sensors && metrics.sensors.temperatures
             ? metrics.sensors.temperatures : [];
         var cpuSensors = sensors.filter(function(s) {
-            var n = (s.chip || "").toLowerCase();
-            return n === "coretemp" || n === "k10temp" || n === "zenpower"
-                || n.indexOf("cpu") >= 0;
+            var chipName = (s.chip || "").toLowerCase();
+            return chipName === "coretemp" || chipName === "k10temp" || chipName === "zenpower"
+                || chipName.indexOf("cpu") >= 0;
         });
         if (cpuSensors.length === 0) return null;
         var max = cpuSensors[0].temperature_celsius;
@@ -52,9 +41,9 @@ ColumnLayout {
         var sensors = metrics && metrics.sensors && metrics.sensors.temperatures
             ? metrics.sensors.temperatures : [];
         var cpuSensors = sensors.filter(function(s) {
-            var n = (s.chip || "").toLowerCase();
-            return n === "coretemp" || n === "k10temp" || n === "zenpower"
-                || n.indexOf("cpu") >= 0;
+            var chipName = (s.chip || "").toLowerCase();
+            return chipName === "coretemp" || chipName === "k10temp" || chipName === "zenpower"
+                || chipName.indexOf("cpu") >= 0;
         });
         if (cpuSensors.length === 0) return "sem sensor de CPU";
         var best = cpuSensors[0];
@@ -120,7 +109,6 @@ ColumnLayout {
             Layout.fillWidth: true
             values: root.history
             strokeColor: theme.cpuColor
-            fillColor: Qt.rgba(0.376, 0.647, 0.98, 0.18)
             maximumValue: 100
             maxLabel: "100%"
             minLabel: "0%"
@@ -166,7 +154,7 @@ ColumnLayout {
             Layout.fillWidth: true
             accentColor: theme.systemColor
             label: "Uptime"
-            value: root.fmtUptime(metrics ? metrics.uptime : 0)
+            value: theme.fmtUptime(metrics ? metrics.uptime : 0)
         }
     }
 

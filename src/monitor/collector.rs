@@ -118,6 +118,54 @@ fn device_basename(path: &std::ffi::OsStr) -> String {
         .to_string()
 }
 
+/// Calcula taxas de leitura e escrita em bytes/seg a partir de dois snapshots de
+/// `/proc/diskstats` e do tempo real decorrido.
+fn compute_disk_io_rates(
+    before: &HashMap<String, (u64, u64)>,
+    after:  &HashMap<String, (u64, u64)>,
+    elapsed_secs: f64,
+) -> (HashMap<String, u64>, HashMap<String, u64>) {
+    let mut read_rates  = HashMap::new();
+    let mut write_rates = HashMap::new();
+    for (name, (sr_after, sw_after)) in after {
+        if let Some((sr_before, sw_before)) = before.get(name) {
+            let d_read  = sr_after.saturating_sub(*sr_before);
+            let d_write = sw_after.saturating_sub(*sw_before);
+            read_rates.insert(
+                name.clone(),
+                (d_read  as f64 * SECTOR_BYTES / elapsed_secs).round() as u64,
+            );
+            write_rates.insert(
+                name.clone(),
+                (d_write as f64 * SECTOR_BYTES / elapsed_secs).round() as u64,
+            );
+        }
+    }
+    (read_rates, write_rates)
+}
+
+/// Constrói um `DiskInfo` a partir de uma entrada de disco do sysinfo e suas taxas de I/O.
+fn build_disk_info(disk: &sysinfo::Disk, read_rate: u64, write_rate: u64) -> DiskInfo {
+    let total_space     = bytes_to_gb(disk.total_space());
+    let available_space = bytes_to_gb(disk.available_space());
+    let used_space      = total_space - available_space;
+    let usage_percent   = if total_space > 0.0 {
+        (used_space as f32 / total_space as f32) * 100.0
+    } else {
+        0.0
+    };
+    DiskInfo {
+        name:               disk.name().to_str().unwrap_or("Unknown").to_string(),
+        mount_point:        disk.mount_point().to_string_lossy().to_string(),
+        total_space,
+        available_space,
+        used_space,
+        usage_percent,
+        read_bytes_per_sec:  read_rate,
+        write_bytes_per_sec: write_rate,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Estado da interface de rede via /sys/class/net
 // ---------------------------------------------------------------------------
@@ -206,22 +254,10 @@ impl SystemMonitor {
         }
 
         // Taxas de I/O usando o tempo real decorrido (não assume 200 ms fixo)
-        self.disk_read_rates.clear();
-        self.disk_write_rates.clear();
-        for (name, (sr_after, sw_after)) in &disk_io_after {
-            if let Some((sr_before, sw_before)) = disk_io_before.get(name) {
-                let delta_read  = sr_after.saturating_sub(*sr_before);
-                let delta_write = sw_after.saturating_sub(*sw_before);
-                self.disk_read_rates.insert(
-                    name.clone(),
-                    (delta_read  as f64 * SECTOR_BYTES / elapsed_secs).round() as u64,
-                );
-                self.disk_write_rates.insert(
-                    name.clone(),
-                    (delta_write as f64 * SECTOR_BYTES / elapsed_secs).round() as u64,
-                );
-            }
-        }
+        let (read_rates, write_rates) =
+            compute_disk_io_rates(&disk_io_before, &disk_io_after, elapsed_secs);
+        self.disk_read_rates  = read_rates;
+        self.disk_write_rates = write_rates;
     }
 
     pub fn get_cpu_metrics(&self) -> CpuMetrics {
@@ -272,28 +308,10 @@ impl SystemMonitor {
             .disks
             .iter()
             .map(|disk| {
-                let total_space     = bytes_to_gb(disk.total_space());
-                let available_space = bytes_to_gb(disk.available_space());
-                let used_space      = total_space - available_space;
-                let usage_percent   = if total_space > 0.0 {
-                    (used_space as f32 / total_space as f32) * 100.0
-                } else {
-                    0.0
-                };
-                let device              = device_basename(disk.name());
-                let read_bytes_per_sec  = *self.disk_read_rates.get(&device).unwrap_or(&0);
-                let write_bytes_per_sec = *self.disk_write_rates.get(&device).unwrap_or(&0);
-
-                DiskInfo {
-                    name: disk.name().to_str().unwrap_or("Unknown").to_string(),
-                    mount_point: disk.mount_point().to_string_lossy().to_string(),
-                    total_space,
-                    available_space,
-                    used_space,
-                    usage_percent,
-                    read_bytes_per_sec,
-                    write_bytes_per_sec,
-                }
+                let device     = device_basename(disk.name());
+                let read_rate  = *self.disk_read_rates.get(&device).unwrap_or(&0);
+                let write_rate = *self.disk_write_rates.get(&device).unwrap_or(&0);
+                build_disk_info(disk, read_rate, write_rate)
             })
             .collect();
 
@@ -407,5 +425,76 @@ impl SystemMonitor {
                 (la.one, la.five, la.fifteen)
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn test_device_basename_extrai_nome_do_caminho() {
+        assert_eq!(device_basename(OsStr::new("/dev/sda")), "sda");
+        assert_eq!(device_basename(OsStr::new("/dev/nvme0n1")), "nvme0n1");
+        assert_eq!(device_basename(OsStr::new("sda")), "sda");
+        assert_eq!(device_basename(OsStr::new("")), "");
+    }
+
+    #[test]
+    fn test_compute_cpu_percents_distribui_corretamente() {
+        let prev = CpuStatRaw { user: 0, nice: 0, system: 0, idle: 0,
+            iowait: 0, irq: 0, softirq: 0, steal: 0 };
+        // user+nice=50, system=20, idle=30 de 100 ticks totais
+        let curr = CpuStatRaw { user: 40, nice: 10, system: 20, idle: 30,
+            iowait: 0, irq: 0, softirq: 0, steal: 0 };
+        let (user, system, idle, steal) = compute_cpu_percents(&prev, &curr);
+        assert!((user   - 50.0).abs() < 0.1, "user% esperado 50, obteve {user}");
+        assert!((system - 20.0).abs() < 0.1, "system% esperado 20, obteve {system}");
+        assert!((idle   - 30.0).abs() < 0.1, "idle% esperado 30, obteve {idle}");
+        assert!((steal  -  0.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_compute_cpu_percents_retorna_idle_total_sem_delta() {
+        let snap = CpuStatRaw { user: 100, nice: 0, system: 50, idle: 200,
+            iowait: 0, irq: 0, softirq: 0, steal: 0 };
+        let (_, _, idle, steal) = compute_cpu_percents(&snap, &snap);
+        assert_eq!(idle,  100.0);
+        assert_eq!(steal,   0.0);
+    }
+
+    #[test]
+    fn test_compute_cpu_percents_contabiliza_steal() {
+        let prev = CpuStatRaw { user: 0, nice: 0, system: 0, idle: 0,
+            iowait: 0, irq: 0, softirq: 0, steal: 0 };
+        let curr = CpuStatRaw { user: 25, nice: 0, system: 25, idle: 25,
+            iowait: 0, irq: 0, softirq: 0, steal: 25 };
+        let (user, system, idle, steal) = compute_cpu_percents(&prev, &curr);
+        assert!((user   - 25.0).abs() < 0.1);
+        assert!((system - 25.0).abs() < 0.1);
+        assert!((idle   - 25.0).abs() < 0.1);
+        assert!((steal  - 25.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_compute_disk_io_rates_converte_setores_para_bytes_por_seg() {
+        let mut before = HashMap::new();
+        before.insert("sda".to_string(), (1000u64, 500u64));
+        let mut after = HashMap::new();
+        after.insert("sda".to_string(), (1200u64, 700u64));
+        // delta_read=200, delta_write=200; 200 * 512 / 1.0 = 102400
+        let (read_rates, write_rates) = compute_disk_io_rates(&before, &after, 1.0);
+        assert_eq!(*read_rates.get("sda").unwrap(),  102_400);
+        assert_eq!(*write_rates.get("sda").unwrap(), 102_400);
+    }
+
+    #[test]
+    fn test_compute_disk_io_rates_ignora_dispositivos_ausentes_no_before() {
+        let before = HashMap::new();
+        let mut after = HashMap::new();
+        after.insert("nvme0n1".to_string(), (500u64, 200u64));
+        let (read_rates, _) = compute_disk_io_rates(&before, &after, 1.0);
+        assert!(read_rates.is_empty());
     }
 }

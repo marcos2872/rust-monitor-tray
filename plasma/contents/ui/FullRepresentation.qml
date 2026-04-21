@@ -39,23 +39,7 @@ PlasmaComponents3.ScrollView {
         return errorMessage.length === 0 && (!metrics.cpu || metrics.cpu.name === "");
     }
 
-    function fmtUptime(seconds) {
-        if (seconds === undefined || seconds === null || isNaN(seconds)) {
-            return "0m";
-        }
-        var total = Number(seconds);
-        var days = Math.floor(total / 86400);
-        var hours = Math.floor((total % 86400) / 3600);
-        var minutes = Math.floor((total % 3600) / 60);
-        if (days > 0) {
-            return days + "d " + hours + "h " + minutes + "m";
-        }
-        if (hours > 0) {
-            return hours + "h " + minutes + "m";
-        }
-        return minutes + "m";
-    }
-
+    Theme { id: theme }
     clip: true
     contentWidth: availableWidth
     QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
@@ -70,7 +54,7 @@ PlasmaComponents3.ScrollView {
             title: "Monitor do Sistema"
             subtitle: root.errorMessage.length > 0
                 ? root.errorMessage
-                : (root.isLoading() ? "Coletando métricas..." : "Uptime: " + root.fmtUptime(metrics.uptime))
+                : (root.isLoading() ? "Coletando métricas..." : "Uptime: " + theme.fmtUptime(metrics.uptime))
         }
 
         MetricCard {

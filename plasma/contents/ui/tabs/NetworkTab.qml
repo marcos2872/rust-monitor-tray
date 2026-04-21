@@ -26,22 +26,6 @@ ColumnLayout {
         return rows.slice(0, 5);
     }
 
-    function fmtBytes(value) {
-        if (value === undefined || value === null || isNaN(value)) return "0 B";
-        var units = ["B", "KB", "MB", "GB", "TB"];
-        var size = Number(value);
-        var index = 0;
-        while (size >= 1024 && index < units.length - 1) {
-            size /= 1024;
-            index += 1;
-        }
-        return size.toFixed(index === 0 ? 0 : 1) + " " + units[index];
-    }
-
-    function fmtRate(value) {
-        return fmtBytes(value) + "/s";
-    }
-
     function historyWindowLabel() {
         return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
@@ -76,19 +60,19 @@ ColumnLayout {
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Download"
-                value: root.fmtBytes(root.downloadRate)
+                value: theme.fmtBytes(root.downloadRate)
                 unit: "/s"
                 accentColor: theme.cpuColor
-                footnote: metrics && metrics.network ? ("Total: " + root.fmtBytes(metrics.network.total_bytes_received)) : "-"
+                footnote: metrics && metrics.network ? ("Total: " + theme.fmtBytes(metrics.network.total_bytes_received)) : "-"
             }
 
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Upload"
-                value: root.fmtBytes(root.uploadRate)
+                value: theme.fmtBytes(root.uploadRate)
                 unit: "/s"
                 accentColor: theme.dangerColor
-                footnote: metrics && metrics.network ? ("Total: " + root.fmtBytes(metrics.network.total_bytes_transmitted)) : "-"
+                footnote: metrics && metrics.network ? ("Total: " + theme.fmtBytes(metrics.network.total_bytes_transmitted)) : "-"
             }
         }
     }
@@ -100,31 +84,29 @@ ColumnLayout {
 
         SectionHeader {
             title: "Download"
-            subtitle: root.fmtRate(root.downloadRate)
+            subtitle: theme.fmtRate(root.downloadRate)
         }
 
         HistoryChart {
             Layout.fillWidth: true
             values: root.downloadHistory
             strokeColor: theme.cpuColor
-            fillColor: Qt.rgba(0.376, 0.647, 0.98, 0.18)
             maximumValue: root.historyMaximum()
-            maxLabel: root.fmtRate(root.historyMaximum())
+            maxLabel: theme.fmtRate(root.historyMaximum())
             minLabel: "0 B/s"
         }
 
         SectionHeader {
             title: "Upload"
-            subtitle: root.fmtRate(root.uploadRate)
+            subtitle: theme.fmtRate(root.uploadRate)
         }
 
         HistoryChart {
             Layout.fillWidth: true
             values: root.uploadHistory
             strokeColor: theme.dangerColor
-            fillColor: Qt.rgba(0.937, 0.267, 0.267, 0.18)
             maximumValue: root.historyMaximum()
-            maxLabel: root.fmtRate(root.historyMaximum())
+            maxLabel: theme.fmtRate(root.historyMaximum())
             minLabel: "0 B/s"
         }
     }
@@ -174,13 +156,13 @@ ColumnLayout {
                     Item { Layout.preferredWidth: 8 + theme.spacingS }
 
                     PlasmaComponents3.Label {
-                        text: "↓ " + root.fmtBytes(modelData.data.bytes_received)
+                        text: "↓ " + theme.fmtBytes(modelData.data.bytes_received)
                         font.pixelSize: 11
                         color: theme.cpuColor
                     }
 
                     PlasmaComponents3.Label {
-                        text: "↑ " + root.fmtBytes(modelData.data.bytes_transmitted)
+                        text: "↑ " + theme.fmtBytes(modelData.data.bytes_transmitted)
                         font.pixelSize: 11
                         color: theme.dangerColor
                         Layout.fillWidth: true
