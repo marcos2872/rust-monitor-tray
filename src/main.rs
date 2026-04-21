@@ -13,7 +13,7 @@ use gtk::{Application, ApplicationWindow};
 use libappindicator::{AppIndicator, AppIndicatorStatus};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::monitor::{SystemMetrics, SystemMonitor};
+use crate::monitor::{DiskInfo, NetworkInterface, SystemMetrics, SystemMonitor};
 
 struct IconCache {
     last_cpu: Option<u32>,
@@ -24,13 +24,18 @@ struct IconCache {
 struct MenuItems {
     cpu_root_item: gtk::MenuItem,
     cpu_usage_item: gtk::MenuItem,
+    cpu_core_items: Vec<gtk::MenuItem>,
     mem_root_item: gtk::MenuItem,
     mem_usage_item: gtk::MenuItem,
+    mem_used_item: gtk::MenuItem,
+    mem_available_item: gtk::MenuItem,
     disk_root_item: gtk::MenuItem,
     disk_usage_item: gtk::MenuItem,
     disk_total_item: gtk::MenuItem,
     disk_available_item: gtk::MenuItem,
+    disk_partition_items: Vec<(String, gtk::MenuItem)>,
     network_root_item: gtk::MenuItem,
+    network_interface_items: Vec<(String, gtk::MenuItem)>,
     swap_item: Option<gtk::MenuItem>,
     uptime_root_item: gtk::MenuItem,
     uptime_item: gtk::MenuItem,
@@ -228,8 +233,16 @@ fn system_summary_label(stats: &SystemMetrics) -> String {
 
 fn cpu_usage_label(stats: &SystemMetrics) -> String {
     format!(
-        "Uso: {}",
+        "Uso total: {}",
         create_bar_chart(stats.cpu.usage_percent, 100.0, 12)
+    )
+}
+
+fn cpu_core_label(index: usize, usage: f32) -> String {
+    format!(
+        "Core {:02}: {}",
+        index + 1,
+        create_bar_chart(usage, 100.0, 10)
     )
 }
 
@@ -238,6 +251,17 @@ fn memory_usage_label(stats: &SystemMetrics) -> String {
         "RAM: {}",
         create_bar_chart(stats.memory.usage_percent, 100.0, 12)
     )
+}
+
+fn memory_used_label(stats: &SystemMetrics) -> String {
+    format!(
+        "Usada: {:.1}/{:.1} GB",
+        stats.memory.used_memory, stats.memory.total_memory
+    )
+}
+
+fn memory_available_label(stats: &SystemMetrics) -> String {
+    format!("Disponível: {:.1} GB", stats.memory.available_memory)
 }
 
 fn swap_label(stats: &SystemMetrics) -> Option<String> {
@@ -269,6 +293,17 @@ fn disk_available_label(stats: &SystemMetrics) -> String {
     format!("Disponível: {:.1} GB", stats.disk.available_space)
 }
 
+fn disk_partition_label(disk: &DiskInfo) -> String {
+    format!(
+        "{} ({}) • {:.1}/{:.1} GB • {:>5.1}%",
+        disk.mount_point,
+        disk.name,
+        disk.used_space,
+        disk.total_space,
+        normalized_usage(disk.usage_percent)
+    )
+}
+
 fn total_rx_label(stats: &SystemMetrics) -> String {
     format!(
         "Recebido: ↓{}",
@@ -283,6 +318,21 @@ fn total_tx_label(stats: &SystemMetrics) -> String {
     )
 }
 
+fn sorted_interface_names(stats: &SystemMetrics) -> Vec<String> {
+    let mut names: Vec<String> = stats.network.interfaces.keys().cloned().collect();
+    names.sort();
+    names
+}
+
+fn network_interface_label(name: &str, interface: &NetworkInterface) -> String {
+    format!(
+        "{} • ↓{} • ↑{}",
+        name,
+        format_bytes(interface.bytes_received as f64),
+        format_bytes(interface.bytes_transmitted as f64)
+    )
+}
+
 fn load_average_label(stats: &SystemMetrics) -> String {
     format!(
         "Load avg: {:.2} / {:.2} / {:.2}",
@@ -294,7 +344,10 @@ fn uptime_label(stats: &SystemMetrics) -> String {
     format!("Uptime: {}", format_uptime(stats.uptime))
 }
 
-fn append_cpu_section(menu: &gtk::Menu, stats: &SystemMetrics) -> (gtk::MenuItem, gtk::MenuItem) {
+fn append_cpu_section(
+    menu: &gtk::Menu,
+    stats: &SystemMetrics,
+) -> (gtk::MenuItem, gtk::MenuItem, Vec<gtk::MenuItem>) {
     let submenu = create_submenu();
     let cpu_root_item = create_submenu_item(&cpu_summary_label(stats), &submenu);
     menu.append(&cpu_root_item);
@@ -319,14 +372,29 @@ fn append_cpu_section(menu: &gtk::Menu, stats: &SystemMetrics) -> (gtk::MenuItem
         "Frequência: {} MHz",
         stats.cpu.frequency
     )));
+    append_separator(&submenu);
+    submenu.append(&create_disabled_item("Uso por núcleo"));
 
-    (cpu_root_item, cpu_usage_item)
+    let mut cpu_core_items = Vec::new();
+    for (index, usage) in stats.cpu.per_core_usage.iter().enumerate() {
+        let item = create_disabled_item(&cpu_core_label(index, *usage));
+        submenu.append(&item);
+        cpu_core_items.push(item);
+    }
+
+    (cpu_root_item, cpu_usage_item, cpu_core_items)
 }
 
 fn append_memory_section(
     menu: &gtk::Menu,
     stats: &SystemMetrics,
-) -> (gtk::MenuItem, gtk::MenuItem, Option<gtk::MenuItem>) {
+) -> (
+    gtk::MenuItem,
+    gtk::MenuItem,
+    gtk::MenuItem,
+    gtk::MenuItem,
+    Option<gtk::MenuItem>,
+) {
     let submenu = create_submenu();
     let mem_root_item = create_submenu_item(&memory_summary_label(stats), &submenu);
     menu.append(&mem_root_item);
@@ -338,15 +406,11 @@ fn append_memory_section(
     )));
 
     let mem_usage_item = create_disabled_item(&memory_usage_label(stats));
+    let mem_used_item = create_disabled_item(&memory_used_label(stats));
+    let mem_available_item = create_disabled_item(&memory_available_label(stats));
     submenu.append(&mem_usage_item);
-    submenu.append(&create_disabled_item(&format!(
-        "Usada: {:.1}/{:.1} GB",
-        stats.memory.used_memory, stats.memory.total_memory
-    )));
-    submenu.append(&create_disabled_item(&format!(
-        "Disponível: {:.1} GB",
-        stats.memory.available_memory
-    )));
+    submenu.append(&mem_used_item);
+    submenu.append(&mem_available_item);
 
     let swap_item = swap_label(stats).map(|label| {
         let item = create_disabled_item(&label);
@@ -354,13 +418,25 @@ fn append_memory_section(
         item
     });
 
-    (mem_root_item, mem_usage_item, swap_item)
+    (
+        mem_root_item,
+        mem_usage_item,
+        mem_used_item,
+        mem_available_item,
+        swap_item,
+    )
 }
 
 fn append_disk_section(
     menu: &gtk::Menu,
     stats: &SystemMetrics,
-) -> (gtk::MenuItem, gtk::MenuItem, gtk::MenuItem, gtk::MenuItem) {
+) -> (
+    gtk::MenuItem,
+    gtk::MenuItem,
+    gtk::MenuItem,
+    gtk::MenuItem,
+    Vec<(String, gtk::MenuItem)>,
+) {
     let submenu = create_submenu();
     let disk_root_item = create_submenu_item(&disk_summary_label(stats), &submenu);
     menu.append(&disk_root_item);
@@ -382,19 +458,34 @@ fn append_disk_section(
         "Usado: {:.1} GB",
         stats.disk.used_space
     )));
+    append_separator(&submenu);
+    submenu.append(&create_disabled_item("Partições"));
+
+    let mut disk_partition_items = Vec::new();
+    for disk in &stats.disk.disks {
+        let item = create_disabled_item(&disk_partition_label(disk));
+        submenu.append(&item);
+        disk_partition_items.push((disk.mount_point.clone(), item));
+    }
 
     (
         disk_root_item,
         disk_usage_item,
         disk_total_item,
         disk_available_item,
+        disk_partition_items,
     )
 }
 
 fn append_network_section(
     menu: &gtk::Menu,
     stats: &SystemMetrics,
-) -> (gtk::MenuItem, gtk::MenuItem, gtk::MenuItem) {
+) -> (
+    gtk::MenuItem,
+    gtk::MenuItem,
+    gtk::MenuItem,
+    Vec<(String, gtk::MenuItem)>,
+) {
     let submenu = create_submenu();
     let network_root_item = create_submenu_item(&network_summary_label(stats), &submenu);
     menu.append(&network_root_item);
@@ -410,8 +501,24 @@ fn append_network_section(
 
     submenu.append(&total_rx_item);
     submenu.append(&total_tx_item);
+    append_separator(&submenu);
+    submenu.append(&create_disabled_item("Detalhes por interface"));
 
-    (network_root_item, total_rx_item, total_tx_item)
+    let mut network_interface_items = Vec::new();
+    for name in sorted_interface_names(stats) {
+        if let Some(interface) = stats.network.interfaces.get(&name) {
+            let item = create_disabled_item(&network_interface_label(&name, interface));
+            submenu.append(&item);
+            network_interface_items.push((name, item));
+        }
+    }
+
+    (
+        network_root_item,
+        total_rx_item,
+        total_tx_item,
+        network_interface_items,
+    )
 }
 
 fn append_system_section(
@@ -441,11 +548,18 @@ fn create_system_menu(stats: &SystemMetrics, app: &Application) -> (gtk::Menu, M
     let menu = gtk::Menu::new();
     menu.set_size_request(380, -1);
 
-    let (cpu_root_item, cpu_usage_item) = append_cpu_section(&menu, stats);
-    let (mem_root_item, mem_usage_item, swap_item) = append_memory_section(&menu, stats);
-    let (disk_root_item, disk_usage_item, disk_total_item, disk_available_item) =
-        append_disk_section(&menu, stats);
-    let (network_root_item, total_rx_item, total_tx_item) = append_network_section(&menu, stats);
+    let (cpu_root_item, cpu_usage_item, cpu_core_items) = append_cpu_section(&menu, stats);
+    let (mem_root_item, mem_usage_item, mem_used_item, mem_available_item, swap_item) =
+        append_memory_section(&menu, stats);
+    let (
+        disk_root_item,
+        disk_usage_item,
+        disk_total_item,
+        disk_available_item,
+        disk_partition_items,
+    ) = append_disk_section(&menu, stats);
+    let (network_root_item, total_rx_item, total_tx_item, network_interface_items) =
+        append_network_section(&menu, stats);
     let (uptime_root_item, uptime_item, load_avg_item) = append_system_section(&menu, stats);
 
     append_separator(&menu);
@@ -455,6 +569,9 @@ fn create_system_menu(stats: &SystemMetrics, app: &Application) -> (gtk::Menu, M
     let app_clone = app.clone();
     quit_item.connect_activate(move |_| {
         app_clone.quit();
+        glib::idle_add_local_once(|| {
+            std::process::exit(0);
+        });
     });
 
     menu.show_all();
@@ -462,13 +579,18 @@ fn create_system_menu(stats: &SystemMetrics, app: &Application) -> (gtk::Menu, M
     let menu_items = MenuItems {
         cpu_root_item: cpu_root_item.clone(),
         cpu_usage_item: cpu_usage_item.clone(),
+        cpu_core_items,
         mem_root_item: mem_root_item.clone(),
         mem_usage_item: mem_usage_item.clone(),
+        mem_used_item: mem_used_item.clone(),
+        mem_available_item: mem_available_item.clone(),
         disk_root_item: disk_root_item.clone(),
         disk_usage_item: disk_usage_item.clone(),
         disk_total_item: disk_total_item.clone(),
         disk_available_item: disk_available_item.clone(),
+        disk_partition_items,
         network_root_item: network_root_item.clone(),
+        network_interface_items,
         swap_item: swap_item.clone(),
         uptime_root_item: uptime_root_item.clone(),
         uptime_item: uptime_item.clone(),
@@ -485,6 +607,10 @@ fn update_menu_items(menu_items: &MenuItems, stats: &SystemMetrics) {
         .cpu_root_item
         .set_label(&cpu_summary_label(stats));
     menu_items.cpu_usage_item.set_label(&cpu_usage_label(stats));
+    for (index, item) in menu_items.cpu_core_items.iter().enumerate() {
+        let usage = stats.cpu.per_core_usage.get(index).copied().unwrap_or(0.0);
+        item.set_label(&cpu_core_label(index, usage));
+    }
 
     menu_items
         .mem_root_item
@@ -492,6 +618,12 @@ fn update_menu_items(menu_items: &MenuItems, stats: &SystemMetrics) {
     menu_items
         .mem_usage_item
         .set_label(&memory_usage_label(stats));
+    menu_items
+        .mem_used_item
+        .set_label(&memory_used_label(stats));
+    menu_items
+        .mem_available_item
+        .set_label(&memory_available_label(stats));
 
     if let (Some(swap_item), Some(label)) = (&menu_items.swap_item, swap_label(stats)) {
         swap_item.set_label(&label);
@@ -509,12 +641,27 @@ fn update_menu_items(menu_items: &MenuItems, stats: &SystemMetrics) {
     menu_items
         .disk_available_item
         .set_label(&disk_available_label(stats));
+    for (mount_point, item) in &menu_items.disk_partition_items {
+        if let Some(disk) = stats
+            .disk
+            .disks
+            .iter()
+            .find(|disk| &disk.mount_point == mount_point)
+        {
+            item.set_label(&disk_partition_label(disk));
+        }
+    }
 
     menu_items
         .network_root_item
         .set_label(&network_summary_label(stats));
     menu_items.total_rx_item.set_label(&total_rx_label(stats));
     menu_items.total_tx_item.set_label(&total_tx_label(stats));
+    for (name, item) in &menu_items.network_interface_items {
+        if let Some(interface) = stats.network.interfaces.get(name) {
+            item.set_label(&network_interface_label(name, interface));
+        }
+    }
 
     menu_items
         .uptime_root_item
