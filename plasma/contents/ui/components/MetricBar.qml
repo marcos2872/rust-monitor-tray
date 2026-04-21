@@ -17,20 +17,23 @@ Item {
     ColumnLayout {
         id: layout
         anchors.fill: parent
-        spacing: 6
+        spacing: theme.spacingXS
 
         RowLayout {
             Layout.fillWidth: true
+            spacing: theme.spacingS
 
             PlasmaComponents3.Label {
                 text: root.label
                 Layout.fillWidth: true
                 elide: Text.ElideRight
+                opacity: 0.9
             }
 
             PlasmaComponents3.Label {
                 text: Math.round(root.value) + "%"
                 horizontalAlignment: Text.AlignRight
+                font.bold: true
             }
         }
 

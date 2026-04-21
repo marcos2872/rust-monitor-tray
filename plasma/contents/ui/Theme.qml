@@ -13,5 +13,7 @@ QtObject {
     readonly property color networkColor: "#f59e0b"
     readonly property color systemColor: "#94a3b8"
     readonly property color trackColor: "#475569"
+    readonly property color successColor: "#22c55e"
+    readonly property color warningColor: "#f59e0b"
     readonly property color dangerColor: "#ef4444"
 }

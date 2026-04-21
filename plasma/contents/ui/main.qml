@@ -25,6 +25,7 @@ PlasmoidItem {
 
     preferredRepresentation: compactRepresentation
     compactRepresentation: CompactRepresentation {
+        plasmoidItem: root
         metrics: root.metrics
     }
     fullRepresentation: FullRepresentation {

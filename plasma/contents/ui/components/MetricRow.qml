@@ -13,9 +13,10 @@ RowLayout {
 
     PlasmaComponents3.Label {
         text: root.label
-        opacity: 0.8
+        opacity: 0.75
         Layout.fillWidth: true
         elide: Text.ElideRight
+        wrapMode: Text.NoWrap
     }
 
     PlasmaComponents3.Label {
@@ -23,5 +24,6 @@ RowLayout {
         horizontalAlignment: Text.AlignRight
         Layout.alignment: Qt.AlignRight
         elide: Text.ElideLeft
+        font.bold: true
     }
 }

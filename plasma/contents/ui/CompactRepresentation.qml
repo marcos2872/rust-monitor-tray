@@ -1,10 +1,14 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import org.kde.plasma.components 3.0 as PlasmaComponents3
+import org.kde.plasma.plasmoid 2.0
 
 Item {
     id: root
 
+    required property PlasmoidItem plasmoidItem
     property var metrics: ({})
 
     implicitWidth: 136
@@ -15,6 +19,14 @@ Item {
     Layout.minimumHeight: 24
     Layout.preferredHeight: 24
     clip: true
+
+    MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        acceptedButtons: Qt.LeftButton
+        onClicked: root.plasmoidItem.expanded = !root.plasmoidItem.expanded
+    }
 
     RowLayout {
         anchors.fill: parent

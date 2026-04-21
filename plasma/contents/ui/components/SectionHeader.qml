@@ -14,6 +14,7 @@ ColumnLayout {
     PlasmaComponents3.Label {
         text: root.title
         font.bold: true
+        font.pointSize: 10
         Layout.fillWidth: true
         elide: Text.ElideRight
     }

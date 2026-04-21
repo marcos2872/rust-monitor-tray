@@ -22,6 +22,22 @@ PlasmaComponents3.ScrollView {
         return rows;
     }
 
+    function topDisks() {
+        var rows = metrics.disk && metrics.disk.disks ? metrics.disk.disks.slice(0) : [];
+        rows.sort(function(a, b) { return (b.usage_percent || 0) - (a.usage_percent || 0); });
+        return rows.slice(0, 4);
+    }
+
+    function topInterfaces() {
+        var rows = asArray(metrics.network ? metrics.network.interfaces : null);
+        rows.sort(function(a, b) {
+            var aTraffic = (a.data.bytes_received || 0) + (a.data.bytes_transmitted || 0);
+            var bTraffic = (b.data.bytes_received || 0) + (b.data.bytes_transmitted || 0);
+            return bTraffic - aTraffic;
+        });
+        return rows.slice(0, 4);
+    }
+
     function fmtPercent(value) {
         if (value === undefined || value === null || isNaN(value)) {
             return "0%";
@@ -34,13 +50,6 @@ PlasmaComponents3.ScrollView {
             return "0.0";
         }
         return Number(value).toFixed(1);
-    }
-
-    function usageColor(value, defaultColor) {
-        if (value >= 80) {
-            return theme.dangerColor;
-        }
-        return defaultColor;
     }
 
     function fmtBytes(value) {
@@ -74,6 +83,37 @@ PlasmaComponents3.ScrollView {
         return minutes + "m";
     }
 
+    function usageColor(value, defaultColor) {
+        if (value >= 80) {
+            return theme.dangerColor;
+        }
+        if (value >= 50) {
+            return theme.warningColor;
+        }
+        return defaultColor;
+    }
+
+    function usageState(value) {
+        if (value >= 80) {
+            return { text: "Alto", color: theme.dangerColor };
+        }
+        if (value >= 50) {
+            return { text: "Médio", color: theme.warningColor };
+        }
+        return { text: "OK", color: theme.successColor };
+    }
+
+    function aggregatedDiskUsage() {
+        if (!metrics.disk || !metrics.disk.total_space) {
+            return 0;
+        }
+        return (metrics.disk.used_space / metrics.disk.total_space) * 100.0;
+    }
+
+    function isLoading() {
+        return errorMessage.length === 0 && (!metrics.cpu || metrics.cpu.name === "");
+    }
+
     clip: true
     contentWidth: availableWidth
 
@@ -86,23 +126,67 @@ PlasmaComponents3.ScrollView {
             title: "Monitor do Sistema"
             subtitle: root.errorMessage.length > 0
                 ? root.errorMessage
-                : "Atualização contínua via backend monitor-tray"
+                : (root.isLoading() ? "Coletando métricas..." : "Uptime: " + fmtUptime(metrics.uptime))
+        }
+
+        RowLayout {
+            visible: !root.isLoading() && root.errorMessage.length === 0
+            Layout.fillWidth: true
+            spacing: theme.spacingS
+
+            StatusChip {
+                text: "CPU " + fmtPercent(metrics.cpu ? metrics.cpu.usage_percent : 0)
+                chipColor: usageColor(metrics.cpu ? metrics.cpu.usage_percent : 0, theme.cpuColor)
+            }
+
+            StatusChip {
+                text: "RAM " + fmtPercent(metrics.memory ? metrics.memory.usage_percent : 0)
+                chipColor: usageColor(metrics.memory ? metrics.memory.usage_percent : 0, theme.memoryColor)
+            }
+
+            StatusChip {
+                text: "Disco " + fmtPercent(aggregatedDiskUsage())
+                chipColor: usageColor(aggregatedDiskUsage(), theme.diskColor)
+            }
         }
 
         MetricCard {
-            visible: root.errorMessage.length === 0
+            visible: root.isLoading()
+            title: "Carregando"
+            subtitle: "Aguardando a primeira resposta do backend"
+
+            PlasmaComponents3.Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: "O Plasmoid está coletando as métricas iniciais do sistema."
+            }
+        }
+
+        MetricCard {
+            visible: root.errorMessage.length > 0
+            title: "Backend indisponível"
+            subtitle: "O Plasmoid não conseguiu obter métricas do serviço monitor-tray"
+
+            PlasmaComponents3.Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: root.errorMessage
+            }
+        }
+
+        MetricCard {
+            visible: !root.isLoading() && root.errorMessage.length === 0
             title: "CPU"
             subtitle: metrics.cpu ? metrics.cpu.name : "Sem dados"
 
-            MetricBar {
-                label: "Uso total"
-                value: metrics.cpu ? metrics.cpu.usage_percent : 0
-                barColor: usageColor(metrics.cpu ? metrics.cpu.usage_percent : 0, theme.cpuColor)
-            }
-
             RowLayout {
                 Layout.fillWidth: true
-                spacing: theme.spacingM
+                spacing: theme.spacingS
+
+                StatusChip {
+                    text: usageState(metrics.cpu ? metrics.cpu.usage_percent : 0).text
+                    chipColor: usageState(metrics.cpu ? metrics.cpu.usage_percent : 0).color
+                }
 
                 MetricRow {
                     Layout.fillWidth: true
@@ -117,8 +201,15 @@ PlasmaComponents3.ScrollView {
                 }
             }
 
+            MetricBar {
+                label: "Uso total"
+                value: metrics.cpu ? metrics.cpu.usage_percent : 0
+                barColor: usageColor(metrics.cpu ? metrics.cpu.usage_percent : 0, theme.cpuColor)
+            }
+
             SectionHeader {
                 title: "Uso por núcleo"
+                subtitle: "Resumo rápido dos núcleos lógicos"
             }
 
             GridLayout {
@@ -140,9 +231,25 @@ PlasmaComponents3.ScrollView {
         }
 
         MetricCard {
-            visible: root.errorMessage.length === 0
+            visible: !root.isLoading() && root.errorMessage.length === 0
             title: "Memória"
             subtitle: metrics.memory ? (fmtOne(metrics.memory.used_memory) + " / " + fmtOne(metrics.memory.total_memory) + " GB") : "Sem dados"
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: theme.spacingS
+
+                StatusChip {
+                    text: usageState(metrics.memory ? metrics.memory.usage_percent : 0).text
+                    chipColor: usageState(metrics.memory ? metrics.memory.usage_percent : 0).color
+                }
+
+                MetricRow {
+                    Layout.fillWidth: true
+                    label: "Livre"
+                    value: metrics.memory ? fmtOne(metrics.memory.available_memory) + " GB" : "-"
+                }
+            }
 
             MetricBar {
                 label: "RAM"
@@ -150,14 +257,23 @@ PlasmaComponents3.ScrollView {
                 barColor: usageColor(metrics.memory ? metrics.memory.usage_percent : 0, theme.memoryColor)
             }
 
-            MetricRow {
-                label: "Usada"
-                value: metrics.memory ? fmtOne(metrics.memory.used_memory) + " GB" : "-"
-            }
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: theme.spacingS
+                rowSpacing: theme.spacingXS
 
-            MetricRow {
-                label: "Livre"
-                value: metrics.memory ? fmtOne(metrics.memory.available_memory) + " GB" : "-"
+                MetricRow {
+                    Layout.fillWidth: true
+                    label: "Usada"
+                    value: metrics.memory ? fmtOne(metrics.memory.used_memory) + " GB" : "-"
+                }
+
+                MetricRow {
+                    Layout.fillWidth: true
+                    label: "Total"
+                    value: metrics.memory ? fmtOne(metrics.memory.total_memory) + " GB" : "-"
+                }
             }
 
             MetricBar {
@@ -169,22 +285,39 @@ PlasmaComponents3.ScrollView {
         }
 
         MetricCard {
-            visible: root.errorMessage.length === 0
+            visible: !root.isLoading() && root.errorMessage.length === 0
             title: "Disco"
             subtitle: metrics.disk ? (fmtOne(metrics.disk.used_space) + " / " + fmtOne(metrics.disk.total_space) + " GB") : "Sem dados"
 
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: theme.spacingS
+
+                StatusChip {
+                    text: usageState(aggregatedDiskUsage()).text
+                    chipColor: usageState(aggregatedDiskUsage()).color
+                }
+
+                MetricRow {
+                    Layout.fillWidth: true
+                    label: "Livre"
+                    value: metrics.disk ? fmtOne(metrics.disk.available_space) + " GB" : "-"
+                }
+            }
+
             MetricBar {
                 label: "Uso agregado"
-                value: metrics.disk && metrics.disk.total_space > 0 ? (metrics.disk.used_space / metrics.disk.total_space) * 100.0 : 0
-                barColor: usageColor(metrics.disk && metrics.disk.total_space > 0 ? (metrics.disk.used_space / metrics.disk.total_space) * 100.0 : 0, theme.diskColor)
+                value: aggregatedDiskUsage()
+                barColor: usageColor(aggregatedDiskUsage(), theme.diskColor)
             }
 
             SectionHeader {
-                title: "Partições"
+                title: "Partições principais"
+                subtitle: "As partições com maior uso aparecem primeiro"
             }
 
             Repeater {
-                model: metrics.disk && metrics.disk.disks ? metrics.disk.disks : []
+                model: topDisks()
 
                 delegate: MetricRow {
                     Layout.fillWidth: true
@@ -195,13 +328,15 @@ PlasmaComponents3.ScrollView {
         }
 
         MetricCard {
-            visible: root.errorMessage.length === 0
+            visible: !root.isLoading() && root.errorMessage.length === 0
             title: "Rede"
-            subtitle: metrics.network ? (asArray(metrics.network.interfaces).length + " interfaces") : "Sem dados"
+            subtitle: metrics.network ? (asArray(metrics.network.interfaces).length + " interfaces monitoradas") : "Sem dados"
 
-            RowLayout {
+            GridLayout {
                 Layout.fillWidth: true
-                spacing: theme.spacingM
+                columns: 2
+                columnSpacing: theme.spacingS
+                rowSpacing: theme.spacingXS
 
                 MetricRow {
                     Layout.fillWidth: true
@@ -217,11 +352,12 @@ PlasmaComponents3.ScrollView {
             }
 
             SectionHeader {
-                title: "Interfaces"
+                title: "Interfaces mais ativas"
+                subtitle: "Ordenadas por volume total de tráfego"
             }
 
             Repeater {
-                model: asArray(metrics.network ? metrics.network.interfaces : null)
+                model: topInterfaces()
 
                 delegate: MetricRow {
                     Layout.fillWidth: true
@@ -232,30 +368,27 @@ PlasmaComponents3.ScrollView {
         }
 
         MetricCard {
-            visible: root.errorMessage.length === 0
+            visible: !root.isLoading() && root.errorMessage.length === 0
             title: "Sistema"
-            subtitle: "Estado geral"
+            subtitle: "Resumo do host atual"
 
-            MetricRow {
-                label: "Uptime"
-                value: fmtUptime(metrics.uptime)
-            }
-
-            MetricRow {
-                label: "Load avg"
-                value: metrics.load_average ? (Number(metrics.load_average[0]).toFixed(2) + " / " + Number(metrics.load_average[1]).toFixed(2) + " / " + Number(metrics.load_average[2]).toFixed(2)) : "-"
-            }
-        }
-
-        MetricCard {
-            visible: root.errorMessage.length > 0
-            title: "Backend indisponível"
-            subtitle: "O Plasmoid não conseguiu obter métricas do executável monitor-tray"
-
-            PlasmaComponents3.Label {
+            GridLayout {
                 Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-                text: root.errorMessage
+                columns: 2
+                columnSpacing: theme.spacingS
+                rowSpacing: theme.spacingXS
+
+                MetricRow {
+                    Layout.fillWidth: true
+                    label: "Uptime"
+                    value: fmtUptime(metrics.uptime)
+                }
+
+                MetricRow {
+                    Layout.fillWidth: true
+                    label: "Load avg"
+                    value: metrics.load_average ? (Number(metrics.load_average[0]).toFixed(2) + " / " + Number(metrics.load_average[1]).toFixed(2) + " / " + Number(metrics.load_average[2]).toFixed(2)) : "-"
+                }
             }
         }
     }
