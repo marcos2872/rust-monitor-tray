@@ -34,7 +34,7 @@ Item {
         spacing: 6
 
         Image {
-            source: Qt.resolvedUrl("../icons/com.monitortray.plasmoid.svg")
+            source: Qt.resolvedUrl("../icons/com.monitortray.plasmoid.png")
             Layout.preferredWidth: 18
             Layout.preferredHeight: 18
             fillMode: Image.PreserveAspectFit
