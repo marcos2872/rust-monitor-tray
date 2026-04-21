@@ -385,13 +385,15 @@ impl SystemMonitor {
         }
     }
 
-    /// Retorna os TOP_PROCESSES processos com maior uso de CPU.
+    /// Retorna os TOP_PROCESSES processos com maior uso de CPU,
+    /// normalizado pelo número de cores (0-100% do total do sistema).
     pub fn get_top_processes(&self) -> Vec<ProcessInfo> {
+        let core_count = self.system.cpus().len().max(1) as f32;
         let mut procs: Vec<ProcessInfo> = self.system.processes().values()
             .map(|p| ProcessInfo {
                 pid:         p.pid().as_u32(),
                 name:        p.name().to_string_lossy().to_string(),
-                cpu_percent: p.cpu_usage(),
+                cpu_percent: p.cpu_usage() / core_count,
                 memory_mb:   p.memory() as f64 / (1024.0 * 1024.0),
             })
             .filter(|p| p.cpu_percent > 0.0 || p.memory_mb > 1.0)
