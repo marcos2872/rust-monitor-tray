@@ -21,6 +21,8 @@
 ## Comandos Essenciais
 
 - **Testes:** `make test`
+- **Lint:** `make lint`
+- **QML lint:** `make qml-lint`
 - **Dev server:** `make dev` (backend DBus com cargo-watch)
 - **Build:** `make build` ou `cargo build --release`
 - **Backend DBus:** `make run-dbus`
@@ -31,6 +33,7 @@
 
 - **Código principal:** `src/`
 - **Frontend KDE:** `plasma/`
+- **Instalação local KDE:** `install-kde.sh`
 - **Planos:** `.pi/plans/`
 - **Testes:** `tests/` (não encontrado); testes unitários embutidos em `src/`
 
@@ -38,20 +41,24 @@
 
 - **`src/lib.rs`** — Expõe a API compartilhada para coleta única de métricas, serialização em JSON e constantes do serviço DBus.
 - **`src/main.rs`** — Entry point mínimo do binário; interpreta flags CLI (`--json`, `--dbus`, `--help`) e inicia o backend DBus por padrão.
-- **`src/monitor.rs`** — Define os modelos serializáveis de CPU, memória, disco, rede e sensores e coleta snapshots do sistema via `sysinfo` e `/sys/class/hwmon`.
+- **`src/monitor/models.rs`** — Modelos serializáveis de CPU, memória, disco, rede e sensores.
+- **`src/monitor/hwmon.rs`** — Leitura e normalização de sensores Linux via `/sys/class/hwmon`.
+- **`src/monitor/collector.rs`** — Coleta snapshots do sistema via `sysinfo` e compõe `SystemMetrics`.
 - **`src/dbus.rs`** — Implementa o backend DBus com `zbus`, mantendo um `SystemMonitor` compartilhado e expondo métricas em JSON para o frontend KDE.
 - **`plasma/contents/ui/`** — Frontend do Plasmoid KDE, com representações compacta/expandida, componentes reutilizáveis e tabs.
 
 ## Arquitetura
 
 - **Estilo:** Flat modular com separação backend/frontend
-- **Descrição:** `monitor.rs` concentra a coleta e modelagem de métricas. `lib.rs` fornece funções reutilizáveis para coleta/serialização. `dbus.rs` publica o backend em DBus, e `main.rs` atua apenas como launcher do binário. O frontend do produto fica no Plasmoid em `plasma/`, que consulta o backend via DBus.
+- **Descrição:** o módulo `monitor/` concentra a coleta e modelagem de métricas em submódulos (`models`, `hwmon`, `collector`). `lib.rs` fornece funções reutilizáveis para coleta/serialização. `dbus.rs` publica o backend em DBus, e `main.rs` atua apenas como launcher do binário. O frontend do produto fica no Plasmoid em `plasma/`, que consulta o backend via DBus.
 
 ## Testes
 
 - **Framework:** `cargo test` (testes unitários Rust)
 - **Diretório:** `src/` com módulos `#[cfg(test)]`; `tests/` ⚠️ não encontrado
 - **Executar todos:** `make test`
+- **Lint Rust:** `cargo clippy --all-targets --all-features -- -D warnings`
+- **Lint QML:** `make qml-lint`
 - **Validação adicional de runtime KDE:** `make kde-refresh` + teste manual do plasmoid no Plasma
 - **Com cobertura:** `(preencher manualmente)`
 

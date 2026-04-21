@@ -64,8 +64,13 @@ monitor-tray/
 │  ├─ dbus.rs
 │  ├─ lib.rs
 │  ├─ main.rs
-│  └─ monitor.rs
+│  └─ monitor/
+│     ├─ collector.rs
+│     ├─ hwmon.rs
+│     ├─ models.rs
+│     └─ mod.rs
 ├─ Makefile
+├─ install-kde.sh
 └─ Cargo.toml
 ```
 
@@ -74,12 +79,14 @@ monitor-tray/
 ### Rust
 - Rust 1.70+
 - Cargo
+- componente `clippy` do Rust (`rustup component add clippy`)
 
 ### KDE / Plasma
 Ferramentas esperadas no fluxo de desenvolvimento:
 - `plasmashell`
 - `kpackagetool5` ou `kpackagetool6`
 - `gdbus`
+- `qmllint` (para `make qml-lint` / `make lint`)
 
 ### Linux / sensores
 Para melhor cobertura de sensores, o sistema deve expor dados em:
@@ -101,6 +108,8 @@ cargo run -- --dbus
 ```bash
 make build         # cargo build --release
 make test          # cargo test
+make lint          # cargo clippy + qmllint
+make qml-lint      # valida os arquivos QML do plasmoid
 make run-json      # imprime métricas em JSON
 make run-dbus      # sobe o backend DBus
 make kde-refresh   # build + instala/recarrega o plasmoid
@@ -124,6 +133,30 @@ Ainda não cobre integralmente:
 - **Energy**
 - fontes extras como `powercap` / `power_supply`
 
+## Instalação rápida no KDE
+
+```bash
+./install-kde.sh
+```
+
+O script:
+- compila o backend em release
+- instala o binário em `~/.local/bin`
+- instala/atualiza o plasmoid
+- cria e ativa um serviço `systemd --user` para o backend DBus
+
+## Remoção
+
+```bash
+./uninstall-kde.sh
+```
+
+O script de remoção:
+- desativa e remove o serviço `systemd --user`
+- remove o binário instalado
+- remove o plasmoid do Plasma
+- recarrega o `plasmashell`
+
 ## Desenvolvimento
 
 ### Clonar e rodar
@@ -132,6 +165,7 @@ Ainda não cobre integralmente:
 git clone <repository-url>
 cd monitor-tray
 make test
+make lint
 make kde-dev
 ```
 

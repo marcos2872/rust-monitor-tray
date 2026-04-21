@@ -9,6 +9,12 @@ pub struct MetricsBackend {
     monitor: Mutex<SystemMonitor>,
 }
 
+impl Default for MetricsBackend {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsBackend {
     pub fn new() -> Self {
         Self {

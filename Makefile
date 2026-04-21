@@ -7,15 +7,17 @@ CARGO := cargo
 CARGO_WATCH := $(CARGO) watch
 KPACKAGETOOL := $(shell command -v kpackagetool6 >/dev/null 2>&1 && echo kpackagetool6 || echo kpackagetool5)
 
-.PHONY: help build test dev run-json run-dbus check-tools check-watch check-kde-tools install-dev-tools plasmoid-install plasmoid-remove plasmoid-upgrade plasmoid-reload plasmoid-run kde-refresh kde-dev
+.PHONY: help build test lint qml-lint dev run-json run-dbus check-tools check-watch check-kde-tools install-dev-tools plasmoid-install plasmoid-remove plasmoid-upgrade plasmoid-reload plasmoid-run kde-refresh kde-dev
 
 help:
 	@echo "Targets disponíveis:"
 	@echo "  make build            - Compila o backend Rust em release"
+	@echo "  make test             - Executa a suíte de testes"
+	@echo "  make lint             - Executa clippy e valida QML com qmllint"
+	@echo "  make qml-lint         - Valida os arquivos QML do plasmoid"
 	@echo "  make run-json         - Imprime métricas em JSON"
 	@echo "  make run-dbus         - Inicia o backend DBus para o Plasmoid KDE"
 	@echo "  make kde-refresh      - Faz build, instala e recarrega o Plasmoid"
-	@echo "  make test             - Executa a suíte de testes"
 	@echo "  make dev              - Hot-reload do backend DBus via cargo-watch"
 	@echo "  make plasmoid-install - Instala/atualiza o Plasmoid no Plasma"
 	@echo "  make plasmoid-remove  - Remove o Plasmoid do Plasma"
@@ -65,6 +67,21 @@ run-dbus: check-tools
 
 test: check-tools
 	@$(CARGO) test
+
+qml-lint:
+	@command -v qmllint >/dev/null 2>&1 || { \
+		echo "Erro: qmllint não encontrado."; \
+		exit 1; \
+	}
+	@qmllint plasma/contents/ui/main.qml plasma/contents/ui/FullRepresentation.qml plasma/contents/ui/components/*.qml plasma/contents/ui/tabs/*.qml plasma/contents/ui/Theme.qml
+
+lint: check-tools qml-lint
+	@$(CARGO) clippy --version >/dev/null 2>&1 || { \
+		echo "Erro: cargo clippy não encontrado."; \
+		echo "Instale o componente com: rustup component add clippy"; \
+		exit 1; \
+	}
+	@$(CARGO) clippy --all-targets --all-features -- -D warnings
 
 dev: check-watch
 	@$(CARGO_WATCH) -q -x 'run -- --dbus'
