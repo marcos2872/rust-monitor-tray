@@ -152,9 +152,6 @@ Item {
                 font.pixelSize: 11
             }
         }
-                font.pixelSize: 11
-            }
-        }
     }
 
     onValuesChanged: canvas.requestPaint()
