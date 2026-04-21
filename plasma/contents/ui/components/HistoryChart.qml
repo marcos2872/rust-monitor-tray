@@ -37,11 +37,15 @@ Item {
         anchors.fill: parent
         spacing: theme.spacingXS
 
-        // Rótulo do topo do eixo Y
-        PlasmaComponents3.Label {
-            text: root.maxLabel.length > 0 ? root.maxLabel : Math.round(root.computedMaximum()).toString()
-            color: theme.subduedTextColor
-            font.pixelSize: 11
+        // Rótulo do topo: máximo Y alinhado à direita
+        RowLayout {
+            Layout.fillWidth: true
+            Item { Layout.fillWidth: true }
+            PlasmaComponents3.Label {
+                text: root.maxLabel.length > 0 ? root.maxLabel : Math.round(root.computedMaximum()).toString()
+                color: theme.subduedTextColor
+                font.pixelSize: 11
+            }
         }
 
         Rectangle {
@@ -128,16 +132,10 @@ Item {
             }
         }
 
-        // Rodapé: mínimo Y à esquerda + eixo X completo (passado → agora)
+        // Rodapé: passado à esquerda, agora + mínimo Y à direita
         RowLayout {
             Layout.fillWidth: true
             spacing: theme.spacingS
-
-            PlasmaComponents3.Label {
-                text: root.minLabel
-                color: theme.subduedTextColor
-                font.pixelSize: 11
-            }
 
             PlasmaComponents3.Label {
                 text: root.leftFooterText
@@ -149,6 +147,12 @@ Item {
             PlasmaComponents3.Label {
                 text: root.rightFooterText
                 color: theme.mutedTextColor
+                font.pixelSize: 11
+            }
+
+            PlasmaComponents3.Label {
+                text: root.minLabel
+                color: theme.subduedTextColor
                 font.pixelSize: 11
             }
         }
