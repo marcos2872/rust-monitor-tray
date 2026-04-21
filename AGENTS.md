@@ -94,3 +94,9 @@ Ou siga diretamente as regras em `.agents/skills/git-commit-push/SKILL.md`.
 | `qa`      | Análise de bugs e edge cases                   | bash + leitura         |
 | `test`    | Cria e mantém testes automatizados             | escrita em `src/` e `tests/` |
 | `doc`     | Cria documentação técnica em `docs/`           | escrita em docs/       |
+
+## Skills locais
+
+| Skill | Função | Arquivo |
+|---|---|---|
+| `perf` | Analisa performance recorrente de backend Rust, DBus e frontend QML; prioriza gargalos, polling, subprocessos, serialização e redraw | `.agents/skills/perf/SKILL.md` |
