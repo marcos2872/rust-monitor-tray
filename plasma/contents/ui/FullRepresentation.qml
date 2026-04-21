@@ -39,7 +39,6 @@ PlasmaComponents3.ScrollView {
         return errorMessage.length === 0 && (!metrics.cpu || metrics.cpu.name === "");
     }
 
-    Theme { id: theme }
     clip: true
     contentWidth: availableWidth
     QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
