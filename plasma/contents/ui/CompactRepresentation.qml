@@ -33,14 +33,6 @@ Item {
         anchors.margins: 2
         spacing: 6
 
-        Image {
-            source: Qt.resolvedUrl("../icons/com.monitortray.plasmoid.png")
-            Layout.preferredWidth: 18
-            Layout.preferredHeight: 18
-            fillMode: Image.PreserveAspectFit
-            smooth: true
-        }
-
         RowLayout {
             spacing: 3
 
