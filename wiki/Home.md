@@ -16,6 +16,8 @@ curl -fsSL https://raw.githubusercontent.com/marcos2872/rust-monitor-tray/main/i
 
 > Não requer Rust instalado. Baixa o binário pré-compilado da última release.
 
+> O pipeline de release roda validações de **teste** e **lint** antes de publicar os assets.
+
 ---
 
 ## Navegação
@@ -62,6 +64,6 @@ Referência técnica no repositório:
 
 ## Status atual
 
-✅ Release `v0.1.1` publicada
+✅ Release `v0.2.0` publicada
 
 Veja a [página de releases](https://github.com/marcos2872/rust-monitor-tray/releases) para o binário mais recente.
