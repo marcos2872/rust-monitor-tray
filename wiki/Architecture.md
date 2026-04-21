@@ -1,79 +1,66 @@
 # Arquitetura
 
+Esta página é uma **visão geral para contribuidores**. Ela resume como o projeto é dividido e aponta para a documentação técnica detalhada em `docs/`.
+
 ---
 
 ## Visão geral
 
-O Monitor Tray separa **coleta de dados** (backend Rust) de **apresentação** (frontend QML) por meio de uma interface **Session DBus**.
+O Monitor Tray separa **coleta de dados** e **apresentação**:
 
-```
-┌─────────────────────────────────────────────┐
-│              Monitor Tray                   │
-│                                             │
-│  ┌────────────────┐   DBus    ┌──────────┐  │
-│  │  Backend Rust  │◄────────►│ Plasmoid │  │
-│  │  monitor-tray  │           │   QML    │  │
-│  └───────┬────────┘           └──────────┘  │
-│          │                                  │
-└──────────┼──────────────────────────────────┘
-           │
-    ┌──────▼──────┐   ┌──────────────┐
-    │ Kernel Linux │   │  nvidia-smi  │
-    │ /sys  /proc  │   │ (NVIDIA GPU) │
-    └─────────────┘   └──────────────┘
-```
+- **backend Rust**: coleta métricas do sistema Linux, monta um snapshot JSON e expõe via Session DBus;
+- **frontend QML**: consulta esse snapshot a cada `1500 ms`, mantém histórico local e renderiza a UI do plasmoid.
 
-**Backend Rust** coleta métricas a cada ciclo de ~200 ms e expõe `GetMetricsJson()` via DBus.  
-**Plasmoid QML** chama esse método a cada 1500 ms, acumula histórico e renderiza 7 abas.
-
----
-
-## Ciclo de atualização
-
-```
-Timer 1500ms (QML)
-    │
-    ▼ gdbus call GetMetricsJson
-Backend Rust
-    ├── /proc/stat snapshot (antes)
-    ├── /proc/diskstats snapshot (antes)
-    ├── sysinfo refresh #1
-    ├── sleep 200ms
-    ├── sysinfo refresh #2
-    ├── /proc/stat snapshot (depois) → compute_cpu_percents()
-    ├── /proc/diskstats snapshot (depois) → compute_disk_io_rates()
-    └── collect_gpu_metrics() async
-            ├── AMD: /sys/class/drm/cardN/device/
-            ├── Intel: /sys/class/drm/cardN/gt/
-            └── NVIDIA: subprocess nvidia-smi --format=csv
-    │
-    ▼ JSON → DBus → QML → applyMetrics() → re-render
+```mermaid
+graph LR
+    Backend["Backend Rust"] -->|DBus JSON| Frontend["Plasmoid QML"]
+    Backend --> Linux["Linux: /proc, /sys, hwmon, DRM"]
+    Backend --> Ext["Subprocessos: nvidia-smi e ping"]
 ```
 
 ---
 
-## Módulos principais
+## Como o projeto está dividido
 
-| Módulo | Responsabilidade |
+| Área | Papel |
 |---|---|
-| `src/monitor/collector.rs` | `SystemMonitor`: estado, delta CPU/Disk, cache GPU |
-| `src/monitor/gpu.rs` | Detecção e coleta por vendor (AMD/NVIDIA/Intel) |
-| `src/monitor/hwmon.rs` | Sensores via `/sys/class/hwmon` |
-| `src/monitor/models.rs` | Structs do payload JSON |
-| `src/dbus.rs` | Serviço DBus com `zbus` |
-| `plasma/…/main.qml` | Polling, histórico, estado global |
-| `plasma/…/Theme.qml` | Design system: paleta + funções utilitárias |
+| `src/` | Backend Rust: coleta, modelagem, DBus |
+| `src/monitor/` | Núcleo da coleta: CPU, disco, rede, sensores, GPU |
+| `plasma/contents/ui/` | Frontend QML do widget |
+| `docs/` | Referência técnica detalhada |
+| `wiki/` | Visão geral, onboarding e contribuição |
 
 ---
 
-## Documentação técnica detalhada
+## Fluxo resumido
 
-A documentação completa fica em [`docs/`](https://github.com/marcos2872/rust-monitor-tray/tree/main/docs) no repositório:
+1. O frontend chama `GetMetricsJson` via DBus.
+2. O backend atualiza CPU, memória, disco, rede, sensores, GPUs e processos.
+3. O backend devolve um JSON serializado.
+4. O QML aplica os dados, recalcula históricos locais e re-renderiza a aba ativa.
 
-| Arquivo | Conteúdo |
+---
+
+## O que mudou recentemente
+
+Em alto nível, o projeto agora também expõe:
+
+- latência do gateway padrão na aba **Network**;
+- temperatura principal de CPU e GPU já derivada no backend;
+- top processos por CPU na aba **System**;
+- duty cycle do fan da GPU AMD quando disponível.
+
+Os detalhes de implementação, fontes Linux e formato do payload estão documentados em `docs/`.
+
+---
+
+## Referência técnica
+
+Use os documentos abaixo quando precisar de detalhes:
+
+| Documento | Quando consultar |
 |---|---|
-| [architecture.md](https://github.com/marcos2872/rust-monitor-tray/blob/main/docs/architecture.md) | Diagramas C4, fluxo de dados, inventário |
-| [backend.md](https://github.com/marcos2872/rust-monitor-tray/blob/main/docs/backend.md) | Interface DBus, ciclo de coleta, testes |
-| [models.md](https://github.com/marcos2872/rust-monitor-tray/blob/main/docs/models.md) | Referência completa dos structs JSON |
-| [frontend.md](https://github.com/marcos2872/rust-monitor-tray/blob/main/docs/frontend.md) | Abas, histórico, design system |
-| [components.md](https://github.com/marcos2872/rust-monitor-tray/blob/main/docs/components.md) | Props de todos os componentes QML |
+| [`docs/architecture.md`](https://github.com/marcos2872/rust-monitor-tray/blob/main/docs/architecture.md) | Fluxo interno, módulos e decisões arquiteturais |
+| [`docs/backend.md`](https://github.com/marcos2872/rust-monitor-tray/blob/main/docs/backend.md) | Coleta de métricas, DBus, subprocessos e testes |
+| [`docs/models.md`](https://github.com/marcos2872/rust-monitor-tray/blob/main/docs/models.md) | Contrato JSON completo |
+| [`docs/frontend.md`](https://github.com/marcos2872/rust-monitor-tray/blob/main/docs/frontend.md) | Estado QML, histórico e comportamento das abas |

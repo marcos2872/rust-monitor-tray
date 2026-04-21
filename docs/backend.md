@@ -20,6 +20,7 @@ O backend é um binário Rust que coleta métricas do sistema Linux e as expõe 
 | `GetMetricsJson` | `String` (JSON) | Retorna `SystemMetrics` serializado |
 
 **Exemplo de chamada manual:**
+
 ```bash
 gdbus call --session \
   --dest com.monitortray.Backend \
@@ -29,30 +30,42 @@ gdbus call --session \
 
 ---
 
-## Ciclo de Atualização
+## Ciclo de atualização
 
 ```mermaid
 flowchart TD
-    A[Timer 1500ms — Plasmoid] -->|gdbus call| B[GetMetricsJson]
-    B --> C[update_metrics]
-    C --> C1[Snapshot /proc/stat]
-    C --> C2[Snapshot /proc/diskstats]
-    C --> C3[sysinfo refresh ×1]
-    C3 --> D[Sleep 200ms]
-    D --> E[sysinfo refresh ×2]
-    E --> F1[compute_cpu_percents delta]
-    E --> F2[compute_disk_io_rates delta]
-    E --> F3[collect_gpu_metrics async]
-    F1 & F2 & F3 --> G[get_all_metrics]
-    G --> H[serde_json::to_string]
-    H -->|JSON string| B
+    A["Timer 1500 ms no Plasmoid"] -->|GetMetricsJson| B["update_metrics()"]
+    B --> C1["snapshot /proc/stat"]
+    B --> C2["snapshot /proc/diskstats"]
+    B --> C3["refresh sysinfo #1"]
+    C3 --> D["sleep 200 ms"]
+    D --> E["refresh sysinfo #2"]
+    E --> F1["compute_cpu_percents()"]
+    E --> F2["compute_disk_io_rates()"]
+    E --> F3["collect_gpu_metrics().await"]
+    E --> F4{"latency_cycle >= 7?"}
+    F4 -->|sim| G["tokio::spawn(measure_gateway_latency())"]
+    F4 -->|não| H["mantém cache de gateway"]
+    F1 --> I["get_all_metrics()"]
+    F2 --> I
+    F3 --> I
+    G --> I
+    H --> I
+    I --> J["serde_json::to_string(SystemMetrics)"]
 ```
 
-O intervalo de 200 ms entre dois `refresh_all()` do sysinfo garante que os percentuais de CPU sejam precisos, pois são calculados com base no **delta** de contadores acumulados.
+### Janela de medição
+
+O backend usa duas leituras separadas por `200 ms` para obter deltas confiáveis de:
+
+- CPU (`/proc/stat` + `sysinfo`)
+- I/O de disco (`/proc/diskstats`)
+
+A latência de rede **não** é medida em todo ciclo. O ping ao gateway roda apenas a cada `7` ciclos, aproximadamente **10 segundos**, para evitar subprocessos excessivos e tráfego ICMP contínuo.
 
 ---
 
-## Coleta por Subsistema
+## Coleta por subsistema
 
 ### CPU — `/proc/stat` + sysinfo
 
@@ -62,40 +75,95 @@ O intervalo de 200 ms entre dois `refresh_all()` do sysinfo garante que os perce
 | `user_percent` | `/proc/stat` | `(Δuser + Δnice) / Δtotal × 100` |
 | `system_percent` | `/proc/stat` | `(Δsystem + Δirq + Δsoftirq) / Δtotal × 100` |
 | `idle_percent` | `/proc/stat` | `(Δidle + Δiowait) / Δtotal × 100` |
-| `steal_percent` | `/proc/stat` | `Δsteal / Δtotal × 100` (relevante em VMs) |
-| `per_core_usage` | sysinfo | `Vec<f32>` — um valor por núcleo lógico |
-| `frequency` | sysinfo | `cpu.frequency()` do primeiro core (MHz) |
+| `steal_percent` | `/proc/stat` | `Δsteal / Δtotal × 100` |
+| `per_core_usage` | sysinfo | `Vec<f32>` com um valor por núcleo lógico |
+| `frequency` | sysinfo | frequência do primeiro core, em MHz |
+| `name` | sysinfo | marca/modelo retornado por `brand()` |
 
 ### Memória — sysinfo
 
-Valores em GB (`bytes / 1024³`). Campos: `total_memory`, `used_memory`, `available_memory`, `usage_percent`, `total_swap`, `used_swap`.
+Valores em GB (`bytes / 1024³`):
+
+- `total_memory`
+- `used_memory`
+- `available_memory`
+- `usage_percent`
+- `total_swap`
+- `used_swap`
 
 ### Disco — sysinfo + `/proc/diskstats`
 
-- **Espaço:** via `sysinfo::Disk` — total, used, available, usage%
-- **I/O:** `/proc/diskstats` — delta de setores lidos/escritos sobre janela de 200 ms → bytes/seg
-
-### Rede — sysinfo + `/sys/class/net`
-
-- **Bytes acumulados:** `sysinfo::NetworkData::total_received/transmitted`
-- **Taxas** (download/upload): calculadas no Plasmoid com base no delta temporal
-- **Status:** `/sys/class/net/{iface}/operstate` — `"up"` e `"unknown"` são tratados como UP
-
-### Sensores — `/sys/class/hwmon` + sysinfo fallback
-
-Leitura direta de arquivos `temp*_input`, `fan*_input`, `in*_input`, `curr*_input`, `power*_input`. O chip é identificado pelo arquivo `name` do diretório hwmon. Se nenhum sensor for encontrado via hwmon, usa `sysinfo::Components` como fallback.
-
-### GPU — sysfs + nvidia-smi
-
-| Driver | Fonte | Dados coletados |
+| Campo | Fonte | Observação |
 |---|---|---|
-| `amdgpu` / `radeon` | `/sys/class/drm/cardN/device/` | uso%, VRAM, clocks (pp_dpm_sclk/mclk), temp, potência, fan RPM |
-| `i915` / `xe` | `/sys/class/drm/cardN/gt/gt0/` | clock (rps_cur_freq_mhz), temp se hwmon i915 presente |
-| `nvidia` | subprocess `nvidia-smi --format=csv,noheader,nounits` | uso%, VRAM (MiB), clocks, temp, potência |
+| espaço total/usado/disponível | `sysinfo::Disk` | agregado por partição |
+| `read_bytes_per_sec` | `/proc/diskstats` | delta de setores × `512` bytes |
+| `write_bytes_per_sec` | `/proc/diskstats` | delta de setores × `512` bytes |
+
+### Rede — sysinfo + `/sys/class/net` + `/proc/net/route`
+
+| Campo | Fonte | Observação |
+|---|---|---|
+| bytes/pacotes/erros por interface | sysinfo | valores acumulados desde o boot |
+| `is_up` | `/sys/class/net/<iface>/operstate` | `up` e `unknown` contam como ativo |
+| `gateway_ip` | `/proc/net/route` | rota default em hexadecimal little-endian |
+| `gateway_latency_ms` | subprocesso `ping` | `ping -c1 -W1`, com timeout total de `1500 ms` |
+
+#### Estratégia de latência
+
+- `measure_gateway_latency()` lê o gateway padrão;
+- `ping_host()` executa `ping` via `tokio::process::Command`;
+- `tokio::time::timeout()` evita bloquear o ciclo do backend;
+- os valores ficam cacheados e são reaproveitados até a próxima medição.
+
+### Sensores — `/sys/class/hwmon` + fallback de `sysinfo::Components`
+
+Leitura direta de:
+
+- `temp*_input`
+- `fan*_input`
+- `pwm*`
+- `in*_input`
+- `curr*_input`
+- `power*_input`
+
+Campos derivados importantes:
+
+| Campo | Regra |
+|---|---|
+| `hottest_temperature_celsius` | maior temperatura global |
+| `hottest_cpu_celsius` | maior temperatura entre chips `coretemp`, `k10temp`, `zenpower` |
+| `hottest_gpu_celsius` | maior temperatura entre chips `amdgpu`, `radeon`, `nouveau` |
+
+### GPU — sysfs + `nvidia-smi`
+
+| Vendor | Fonte | Dados principais |
+|---|---|---|
+| AMD | `/sys/class/drm/cardN/device/` + hwmon | uso%, VRAM, clocks, temperatura, potência, `fan_rpm`, `fan_duty_percent` |
+| Intel | `/sys/class/drm/cardN/gt/gt0/` + hwmon | clock atual, temperatura quando disponível |
+| NVIDIA | `nvidia-smi --format=csv,noheader,nounits` | uso%, VRAM, clocks, temperatura, potência |
+
+#### Observações de implementação
+
+- AMD lê `pwm1` e converte `0..255` para `0..100%` em `fan_duty_percent`;
+- NVIDIA é coletada por subprocesso assíncrono;
+- Intel não expõe uso de GPU nem VRAM pelo caminho atual.
+
+### Processos — sysinfo
+
+`top_processes` é produzido em `get_top_processes()` a partir de `self.system.processes()`.
+
+| Campo | Fonte | Observação |
+|---|---|---|
+| `pid` | sysinfo | `Pid::as_u32()` |
+| `name` | sysinfo | `OsStr` convertido com `to_string_lossy()` |
+| `cpu_percent` | sysinfo | **normalizado por `core_count`** para ficar em `0–100%` do sistema total |
+| `memory_mb` | sysinfo | RSS em bytes convertido para MB |
+
+A lista é ordenada por CPU decrescente e limitada a **15 processos**.
 
 ---
 
-## Modos do Binário
+## Modo de execução do binário
 
 ```bash
 monitor-tray           # padrão: inicia backend DBus
@@ -106,9 +174,9 @@ monitor-tray --help    # exibe ajuda
 
 ---
 
-## Testes
+## Testes relevantes
 
-Os testes unitários ficam em `src/monitor/mod.rs` em módulo `#[cfg(test)]`.
+### `src/monitor/mod.rs`
 
 | Teste | O que valida |
 |---|---|
@@ -123,13 +191,24 @@ Os testes unitários ficam em `src/monitor/mod.rs` em módulo `#[cfg(test)]`.
 | `test_get_sensor_metrics_returns_finite_temperatures_when_available` | Temperaturas finitas |
 | `test_get_all_metrics_returns_non_negative_snapshot` | Snapshot completo |
 
-Testes unitários em `src/monitor/collector.rs`:
+### `src/monitor/collector.rs`
 
 | Teste | O que valida |
 |---|---|
-| `test_device_basename_extrai_nome_do_caminho` | Extração do basename de dispositivo |
+| `test_device_basename_extrai_nome_do_caminho` | Extração do basename do dispositivo |
 | `test_compute_cpu_percents_distribui_corretamente` | Distribuição user/system/idle |
-| `test_compute_cpu_percents_retorna_idle_total_sem_delta` | Idle 100% sem variação |
-| `test_compute_cpu_percents_contabiliza_steal` | Steal time em VMs |
-| `test_compute_disk_io_rates_converte_setores_para_bytes_por_seg` | Taxa de I/O de disco |
-| `test_compute_disk_io_rates_ignora_dispositivos_ausentes_no_before` | Dispositivos novos |
+| `test_compute_cpu_percents_retorna_idle_total_sem_delta` | Idle 100% quando não há variação |
+| `test_compute_cpu_percents_contabiliza_steal` | Cálculo de steal time |
+| `test_compute_disk_io_rates_converte_setores_para_bytes_por_seg` | Conversão de setores para B/s |
+| `test_compute_disk_io_rates_ignora_dispositivos_ausentes_no_before` | Dispositivos novos no snapshot posterior |
+
+---
+
+## Resumo técnico
+
+O backend concentra toda a lógica de coleta e derivação de métricas para manter o frontend simples. As adições mais recentes ao contrato foram:
+
+- `gateway_ip` e `gateway_latency_ms` em rede;
+- `hottest_cpu_*` e `hottest_gpu_*` em sensores;
+- `top_processes` no snapshot raiz;
+- `fan_duty_percent` em `GpuInfo`.

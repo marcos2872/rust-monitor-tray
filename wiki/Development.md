@@ -62,50 +62,68 @@ make run-json
 
 ---
 
-## Testes
+## Onde encontrar a documentação certa
 
-```bash
-make test
-# ou
-cargo test
-```
-
-Os testes unitários ficam em `src/monitor/mod.rs` e `src/monitor/collector.rs` dentro de módulos `#[cfg(test)]`.
+| Se você precisa... | Leia |
+|---|---|
+| entender a visão geral do projeto | `wiki/` |
+| alterar o payload JSON | `docs/models.md` |
+| alterar a coleta backend | `docs/backend.md` |
+| alterar o fluxo ou as abas QML | `docs/frontend.md` |
+| entender módulos e dependências | `docs/architecture.md` |
 
 ---
 
-## Lint
+## Convenção prática para mudanças
 
-```bash
-make lint
-# equivale a:
-cargo clippy --all-targets --all-features -- -D warnings
-qmllint plasma/contents/ui/**/*.qml
-```
+Sempre que alterar um desses pontos, atualize a referência técnica correspondente:
+
+- campos novos em `SystemMetrics` ou structs filhas → `docs/models.md`
+- nova fonte Linux, novo subprocesso ou mudança no ciclo → `docs/backend.md`
+- mudança de comportamento em aba/componentes/estado QML → `docs/frontend.md`
+- mudança estrutural entre backend, DBus e frontend → `docs/architecture.md`
 
 ---
 
 ## Estrutura do projeto
 
-```
+```text
 src/
 ├── main.rs              # Entry point: --dbus | --json | --help
 ├── lib.rs               # API pública: collect_metrics*
 ├── dbus.rs              # Serviço DBus (zbus)
 └── monitor/
     ├── models.rs        # Structs serializáveis do payload
-    ├── collector.rs     # SystemMonitor: delta CPU/Disk, cache GPU
+    ├── collector.rs     # SystemMonitor: deltas, caches e snapshot final
     ├── gpu.rs           # Coleta GPU: AMD/NVIDIA/Intel
     └── hwmon.rs         # Leitura de /sys/class/hwmon
 
 plasma/contents/ui/
-├── main.qml             # Orchestração: polling DBus, histórico
-├── FullRepresentation.qml  # Layout: header fixo + ScrollView
-├── CompactRepresentation.qml  # Exibição no painel
-├── Theme.qml            # Paleta, espaçamentos, funções utilitárias
-├── components/          # MetricCard, HistoryChart, RingGauge…
-└── tabs/                # CpuTab, GpuTab, DiskTab…
+├── main.qml                 # polling DBus, estado global e histórico
+├── FullRepresentation.qml   # layout expandido
+├── CompactRepresentation.qml# resumo no painel
+├── Theme.qml                # paleta e formatadores
+├── components/              # MetricCard, HistoryChart, RingGauge…
+└── tabs/                    # CpuTab, MemoryTab, GpuTab, DiskTab...
 ```
+
+---
+
+## Testes e validação
+
+```bash
+make test
+make lint
+```
+
+Os testes unitários ficam em `src/monitor/mod.rs` e `src/monitor/collector.rs`.
+
+Quando alterar métricas recentes, vale validar manualmente também:
+
+- `top_processes` na aba **System**;
+- `gateway_ip` e `gateway_latency_ms` na aba **Network**;
+- `fan_duty_percent` na aba **GPU**;
+- `hottest_cpu_celsius` no hero da aba **CPU**.
 
 ---
 
