@@ -17,7 +17,9 @@ O backend é um binário Rust que coleta métricas do sistema Linux e as expõe 
 | Método | Retorno | Descrição |
 |---|---|---|
 | `Ping` | `&str` (`"ok"`) | Health check do serviço |
-| `GetMetricsJson` | `String` (JSON) | Retorna `SystemMetrics` serializado |
+| `GetMetricsJson` | `String` (JSON) | Snapshot completo legado/compatibilidade |
+| `FastMetricsJson` | `String` (JSON) | Snapshot rápido: CPU, memória, disco, rede, uptime e load average |
+| `SlowMetricsJson` | `String` (JSON) | Snapshot lento: sensores, GPUs, top processos e `system_info` |
 
 **Exemplo de chamada manual:**
 
@@ -34,25 +36,36 @@ gdbus call --session \
 
 ```mermaid
 flowchart TD
-    A["Timer 1500 ms no Plasmoid"] -->|GetMetricsJson| B["update_metrics()"]
+    A["Timer rápido do frontend"] -->|FastMetricsJson| B["update_fast_metrics()"]
     B --> C1["snapshot /proc/stat"]
     B --> C2["snapshot /proc/diskstats"]
-    B --> C3["refresh sysinfo #1"]
-    C3 --> D["sleep 200 ms"]
-    D --> E["refresh sysinfo #2"]
-    E --> F1["compute_cpu_percents()"]
-    E --> F2["compute_disk_io_rates()"]
-    E --> F3["collect_gpu_metrics().await"]
-    E --> F4{"latency_cycle >= 7?"}
-    F4 -->|sim| G["tokio::spawn(measure_gateway_latency())"]
-    F4 -->|não| H["mantém cache de gateway"]
-    F1 --> I["get_all_metrics()"]
-    F2 --> I
-    F3 --> I
-    G --> I
-    H --> I
-    I --> J["serde_json::to_string(SystemMetrics)"]
+    B --> C3["refresh_cpu_usage()"]
+    C3 --> C4{"refresh_processes?"}
+    C4 -->|sim| C5["refresh_processes_specifics(cpu only)"]
+    C4 -->|não| D["sleep 200 ms"]
+    C5 --> D
+    D --> E1["refresh_cpu_usage()"]
+    E1 --> E2{"refresh_cpu_frequency?"}
+    E2 -->|sim| E3["refresh_cpu_frequency()"]
+    E2 -->|não| E4["refresh_memory()"]
+    E3 --> E4
+    E4 --> E5{"refresh_processes?"}
+    E5 -->|sim| E6["refresh_processes_specifics(cpu + memory)"]
+    E5 -->|não| E7["refresh disks/networks"]
+    E6 --> E7
+    E7 --> E8{"refresh_sensors?"}
+    E8 -->|sim| E9["components.refresh(false)"]
+    E8 -->|não| F1["compute_cpu_percents()"]
+    E9 --> F1
+    F1 --> F2["compute_disk_io_rates()"]
+    F2 --> F5{"refresh_latency?"}
+    F5 -->|sim| F6["tokio::spawn(measure_gateway_latency())"]
+    F5 -->|não| G["get_fast_metrics()"]
+    F6 --> G
+    G --> H["serde_json::to_string(FastMetrics)"]
 ```
+
+O caminho lento roda em chamada separada (`SlowMetricsJson`) e atualiza apenas sensores, GPUs e processos.
 
 ### Janela de medição
 
@@ -63,11 +76,22 @@ O backend usa duas leituras separadas por `200 ms` para obter deltas confiáveis
 
 A latência de rede **não** é medida em todo ciclo. O ping ao gateway roda apenas a cada `7` ciclos, aproximadamente **10 segundos**, para evitar subprocessos excessivos e tráfego ICMP contínuo.
 
+Além disso, o backend agora usa **frequências diferentes por subsistema** e também expõe um contrato DBus separado para caminho quente e caminho lento:
+
+- GPU: a cada `3` ciclos;
+- sensores: a cada `2` ciclos;
+- top processos: a cada `2` ciclos;
+- frequência de CPU: a cada `10` ciclos.
+
+Isso reduz trabalho recorrente sem perder responsividade perceptível no widget.
+
 ---
 
 ## Coleta por subsistema
 
 ### CPU — `/proc/stat` + sysinfo
+
+O backend não usa mais `refresh_all()` em loop quente. Em vez disso, usa refresh granular de CPU, memória e processos, reduzindo custo recorrente.
 
 | Campo | Fonte | Método |
 |---|---|---|
@@ -151,6 +175,7 @@ Campos derivados importantes:
 ### Processos — sysinfo
 
 `top_processes` é produzido em `get_top_processes()` a partir de `self.system.processes()`.
+Os dados são atualizados em uma frequência menor que CPU/rede/disco e ficam em cache entre ciclos.
 
 | Campo | Fonte | Observação |
 |---|---|---|
@@ -206,7 +231,7 @@ monitor-tray --help    # exibe ajuda
 
 ## Resumo técnico
 
-O backend concentra toda a lógica de coleta e derivação de métricas para manter o frontend simples. As adições mais recentes ao contrato foram:
+O backend concentra toda a lógica de coleta e derivação de métricas para manter o frontend simples. As otimizações recentes também reduziram o custo recorrente do loop com refresh granular, TTL por subsistema e serialização split (`FastMetrics` / `SlowMetrics`). As adições mais recentes ao contrato foram:
 
 - `gateway_ip` e `gateway_latency_ms` em rede;
 - `hottest_cpu_*` e `hottest_gpu_*` em sensores;

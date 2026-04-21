@@ -160,6 +160,24 @@ pub struct GpuInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FastMetrics {
+    pub cpu: CpuMetrics,
+    pub memory: MemoryMetrics,
+    pub disk: DiskMetrics,
+    pub network: NetworkMetrics,
+    pub uptime: u64,
+    pub load_average: (f64, f64, f64),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlowMetrics {
+    pub sensors: SensorMetrics,
+    pub gpus: Vec<GpuInfo>,
+    pub top_processes: Vec<ProcessInfo>,
+    pub system_info: SystemInfo,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
     pub cpu: CpuMetrics,
     pub memory: MemoryMetrics,

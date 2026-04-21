@@ -11,10 +11,10 @@ rustup component add clippy
 
 # KDE Plasma SDK
 # Fedora:
-sudo dnf install plasma-sdk
+sudo dnf install plasma-sdk qt6-qtdeclarative
 
 # Ubuntu/Debian:
-sudo apt install plasma-sdk
+sudo apt install plasma-sdk qt6-declarative-dev-tools
 ```
 
 ---
@@ -53,7 +53,7 @@ make run-json
 | `make build` | `cargo build --release` |
 | `make test` | `cargo test` |
 | `make lint` | `cargo clippy` + `qmllint` |
-| `make qml-lint` | Valida apenas os arquivos QML |
+| `make qml-lint` | Valida apenas os arquivos QML (`qmllint`) |
 | `make run-json` | Imprime uma amostra de métricas em JSON |
 | `make run-dbus` | Sobe o backend DBus |
 | `make kde-refresh` | Build + reinstala o plasmoid |
@@ -99,7 +99,7 @@ src/
     └── hwmon.rs         # Leitura de /sys/class/hwmon
 
 plasma/contents/ui/
-├── main.qml                 # polling DBus, estado global e histórico
+├── main.qml                 # cliente DBus persistente, polling rápido/lento e estado segmentado
 ├── FullRepresentation.qml   # layout expandido
 ├── CompactRepresentation.qml# resumo no painel
 ├── Theme.qml                # paleta e formatadores
@@ -119,6 +119,11 @@ make lint
 Os testes unitários ficam em `src/monitor/mod.rs` e `src/monitor/collector.rs`.
 
 Quando alterar métricas recentes, vale validar manualmente também:
+
+- polling DBus rápido no popup expandido e no modo compacto;
+- polling DBus lento para sensores/GPU/processos quando expandido;
+- fallback para `GetMetricsJson` quando o backend ainda estiver em versão antiga;
+- reconexão automática quando o backend DBus sobe/para;
 
 - `top_processes` na aba **System**;
 - `gateway_ip` e `gateway_latency_ms` na aba **Network**;

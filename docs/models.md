@@ -1,12 +1,46 @@
 # Modelos de dados — Monitor Tray
 
-Todos os modelos são definidos em `src/monitor/models.rs` e derivam `Serialize` / `Deserialize` com `serde`. O payload completo é serializado como JSON pelo método DBus `GetMetricsJson`.
+Todos os modelos são definidos em `src/monitor/models.rs` e derivam `Serialize` / `Deserialize` com `serde`.
+
+O backend hoje expõe três payloads JSON principais via DBus:
+
+- `GetMetricsJson` → snapshot completo legado (`SystemMetrics`)
+- `FastMetricsJson` → snapshot quente (`FastMetrics`)
+- `SlowMetricsJson` → snapshot lento (`SlowMetrics`)
+
+---
+
+## FastMetrics
+
+Payload quente usado no polling frequente do frontend.
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `cpu` | `CpuMetrics` | Métricas de CPU |
+| `memory` | `MemoryMetrics` | Métricas de memória RAM e swap |
+| `disk` | `DiskMetrics` | Métricas de armazenamento |
+| `network` | `NetworkMetrics` | Métricas de rede |
+| `uptime` | `u64` | Segundos desde o boot |
+| `load_average` | `(f64, f64, f64)` | Load average de 1, 5 e 15 minutos |
+
+---
+
+## SlowMetrics
+
+Payload lento usado para métricas mais caras ou menos voláteis.
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `sensors` | `SensorMetrics` | Sensores de hardware |
+| `gpus` | `Vec<GpuInfo>` | Lista de GPUs detectadas |
+| `top_processes` | `Vec<ProcessInfo>` | Top 15 processos por uso de CPU |
+| `system_info` | `SystemInfo` | Informações do sistema operacional |
 
 ---
 
 ## SystemMetrics
 
-Raiz do payload JSON.
+Raiz do payload JSON completo legado.
 
 | Campo | Tipo | Descrição |
 |---|---|---|

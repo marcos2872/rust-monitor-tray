@@ -22,11 +22,17 @@ plasma/contents/ui/
 
 ```mermaid
 flowchart TD
-    Timer["Timer 1500 ms em main.qml"] -->|gdbus call| DBus["Session DBus"]
-    DBus -->|JSON string| Extract["extractJsonPayload()"]
+    Watcher["DBusServiceWatcher"] --> StateCheck["serviço disponível?"]
+    FastTimer["Timer 1500 ms expandido / 3000 ms compacto"] --> FastCall["asyncCall(FastMetricsJson)"]
+    SlowTimer["Timer 4500 ms expandido"] --> SlowCall["asyncCall(SlowMetricsJson)"]
+    StateCheck --> FastCall
+    StateCheck --> SlowCall
+    FastCall --> DBus["Session DBus"]
+    SlowCall --> DBus
+    DBus --> Extract["extractJsonPayload()"]
     Extract --> Parse["JSON.parse()"]
-    Parse --> Apply["applyMetrics()"]
-    Apply --> State["Estado global: metrics, histories, rates"]
+    Parse --> Apply["applyFastPayload() / applySlowPayload()"]
+    Apply --> State["Estado segmentado por subsistema + histories"]
     State --> Full["FullRepresentation.qml"]
     State --> Compact["CompactRepresentation.qml"]
     Full --> Loader["Carregamento da aba ativa"]
@@ -48,6 +54,42 @@ O objeto `metrics` inicial já contempla os campos mais recentes do contrato:
 
 > `SensorMetrics` no estado inicial ainda usa apenas campos essenciais; os campos opcionais novos chegam do backend no primeiro `applyMetrics()`.
 
+### Polling e cliente DBus
+
+`main.qml` usa um cliente DBus persistente do Plasma Workspace:
+
+- `import org.kde.plasma.workspace.dbus 1.0 as DBus`
+- `DBus.SessionBus.asyncCall(...)`
+- `DBus.DBusServiceWatcher`
+
+Regras atuais de atualização:
+
+- timer rápido: `1500 ms` quando o popup está **expandido**;
+- timer rápido: `3000 ms` quando o widget está apenas no modo **compacto**;
+- timer lento: `4500 ms` quando o popup está **expandido**;
+- `fastFetchInProgress` / `slowFetchInProgress` evitam chamadas sobrepostas;
+- ao expandir o popup, o frontend dispara coleta imediata dos caminhos rápido e lento;
+- se o backend ainda não expuser `FastMetricsJson` / `SlowMetricsJson`, o frontend recua automaticamente para `GetMetricsJson`.
+
+### Estado global segmentado
+
+O frontend não usa mais um único `root.metrics` substituído por completo a cada resposta.
+
+Em vez disso, o estado foi segmentado em propriedades por subsistema:
+
+- `cpuMetrics`
+- `memoryMetrics`
+- `diskMetrics`
+- `networkMetrics`
+- `sensorMetrics`
+- `gpuMetrics`
+- `topProcesses`
+- `systemInfoMetrics`
+- `uptime`
+- `loadAverage`
+
+Isso reduz invalidação global de bindings e evita repassar um snapshot monolítico para toda a árvore QML.
+
 ### Histórico acumulado
 
 | Propriedade | Conteúdo | Calculado em |
@@ -66,9 +108,14 @@ O objeto `metrics` inicial já contempla os campos mais recentes do contrato:
 
 O histórico é circular e usa:
 
-- `sampleIntervalMs = 1500`
+- `expandedSampleIntervalMs = 1500`
+- `compactSampleIntervalMs = 3000`
 - `historyDurationMs = 5 * 60 * 1000`
-- `historyLength = ceil(historyDurationMs / sampleIntervalMs)`
+- `historyLength = ceil(historyDurationMs / expandedSampleIntervalMs)`
+
+Para reduzir trabalho em segundo plano, os históricos detalhados só são atualizados quando o popup está **expandido**.
+
+Além disso, os históricos passaram a usar um buffer circular lógico, evitando `slice(0)` + `shift()` em cada amostra.
 
 ---
 
@@ -168,9 +215,13 @@ O histórico é circular e usa:
 
 ## Resumo técnico
 
-O frontend mantém apenas lógica de apresentação e derivação leve. Com as mudanças recentes, houve uma redução de lógica duplicada em QML:
+O frontend mantém apenas lógica de apresentação e derivação leve. Com as mudanças recentes, houve uma redução de lógica duplicada e de overhead no QML:
 
 - a temperatura principal da aba CPU agora vem pronta do backend;
 - a latência do gateway chega pronta no payload de rede;
 - a aba System consome `top_processes` diretamente do backend;
-- o detalhe de `fan_duty_percent` da GPU passou a ser exibido sem necessidade de cálculo local.
+- o detalhe de `fan_duty_percent` da GPU passou a ser exibido sem necessidade de cálculo local;
+- o polling deixou de usar subprocesso `gdbus call` e passou a usar cliente DBus persistente assíncrono;
+- o caminho quente passou a consumir payload DBus reduzido (`FastMetricsJson`);
+- o estado QML deixou de ser substituído como um objeto monolítico;
+- os históricos deixaram de copiar arrays inteiros em cada amostra.

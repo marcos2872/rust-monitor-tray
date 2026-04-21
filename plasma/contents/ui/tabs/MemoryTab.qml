@@ -6,8 +6,8 @@ import ".."
 ColumnLayout {
     id: root
 
-    property var metrics: ({})
-    property var history: []
+    property var memoryMetrics: ({})
+    property var history: ({})
     property int historyDurationMs: 5 * 60 * 1000
 
     function historyWindowLabel() {
@@ -15,8 +15,8 @@ ColumnLayout {
     }
 
     function swapPercent() {
-        if (!metrics || !metrics.memory || !metrics.memory.total_swap) return 0;
-        return (metrics.memory.used_swap / metrics.memory.total_swap) * 100.0;
+        if (!root.memoryMetrics || !root.memoryMetrics.total_swap) return 0;
+        return (root.memoryMetrics.used_swap / root.memoryMetrics.total_swap) * 100.0;
     }
 
     Layout.fillWidth: true
@@ -26,7 +26,7 @@ ColumnLayout {
         Layout.fillWidth: true
         hero: true
         title: "RAM"
-        subtitle: metrics && metrics.memory ? (theme.fmtOne(metrics.memory.used_memory) + " / " + theme.fmtOne(metrics.memory.total_memory) + " GB") : "Sem dados"
+        subtitle: root.memoryMetrics ? (theme.fmtOne(root.memoryMetrics.used_memory) + " / " + theme.fmtOne(root.memoryMetrics.total_memory) + " GB") : "Sem dados"
 
         RowLayout {
             Layout.fillWidth: true
@@ -35,7 +35,7 @@ ColumnLayout {
             HeroMetric {
                 Layout.preferredWidth: 110
                 label: "Livre"
-                value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.available_memory) : "0.0"
+                value: root.memoryMetrics ? theme.fmtOne(root.memoryMetrics.available_memory) : "0.0"
                 unit: "GB"
                 accentColor: theme.successColor
                 footnote: "disponível"
@@ -43,8 +43,8 @@ ColumnLayout {
 
             RingGauge {
                 Layout.alignment: Qt.AlignHCenter
-                value: metrics && metrics.memory ? metrics.memory.usage_percent : 0
-                centerText: Math.round(metrics && metrics.memory ? metrics.memory.usage_percent : 0) + "%"
+                value: root.memoryMetrics ? root.memoryMetrics.usage_percent : 0
+                centerText: Math.round(root.memoryMetrics ? root.memoryMetrics.usage_percent : 0) + "%"
                 label: "Memória"
                 accentColor: theme.memoryColor
             }
@@ -52,10 +52,10 @@ ColumnLayout {
             HeroMetric {
                 Layout.preferredWidth: 110
                 label: "Swap"
-                value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.used_swap) : "0.0"
+                value: root.memoryMetrics ? theme.fmtOne(root.memoryMetrics.used_swap) : "0.0"
                 unit: "GB"
                 accentColor: theme.swapColor
-                footnote: metrics && metrics.memory && metrics.memory.total_swap > 0 ? Math.round(root.swapPercent()) + "% usado" : "sem swap"
+                footnote: root.memoryMetrics && root.memoryMetrics.total_swap > 0 ? Math.round(root.swapPercent()) + "% usado" : "sem swap"
             }
         }
     }
@@ -67,7 +67,7 @@ ColumnLayout {
 
         HistoryChart {
             Layout.fillWidth: true
-            values: root.history
+            series: root.history
             strokeColor: theme.memoryColor
             maximumValue: 100
             maxLabel: "100%"
@@ -84,21 +84,21 @@ ColumnLayout {
             Layout.fillWidth: true
             accentColor: theme.memoryColor
             label: "Usada"
-            value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.used_memory) + " GB" : "-"
+            value: root.memoryMetrics ? theme.fmtOne(root.memoryMetrics.used_memory) + " GB" : "-"
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.successColor
             label: "Livre"
-            value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.available_memory) + " GB" : "-"
+            value: root.memoryMetrics ? theme.fmtOne(root.memoryMetrics.available_memory) + " GB" : "-"
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.swapColor
             label: "Swap"
-            value: metrics && metrics.memory ? theme.fmtOne(metrics.memory.used_swap) + " / " + theme.fmtOne(metrics.memory.total_swap) + " GB" : "-"
+            value: root.memoryMetrics ? theme.fmtOne(root.memoryMetrics.used_swap) + " / " + theme.fmtOne(root.memoryMetrics.total_swap) + " GB" : "-"
         }
     }
 

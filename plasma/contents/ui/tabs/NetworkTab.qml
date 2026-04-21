@@ -7,9 +7,9 @@ import ".."
 ColumnLayout {
     id: root
 
-    property var metrics: ({})
-    property var downloadHistory: []
-    property var uploadHistory: []
+    property var networkMetrics: ({})
+    property var downloadHistory: ({})
+    property var uploadHistory: ({})
     property real downloadRate: 0
     property real uploadRate: 0
     property int historyDurationMs: 5 * 60 * 1000
@@ -30,16 +30,26 @@ ColumnLayout {
         return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
 
-    function historyMaximum() {
+    function seriesLength(series) {
+        return series && series.count !== undefined ? series.count : 0;
+    }
+
+    function seriesValue(series, index) {
+        if (!series || !series.buffer || index < 0 || index >= root.seriesLength(series))
+            return 0;
+        var actualIndex = (series.start + index) % series.buffer.length;
+        return Number(series.buffer[actualIndex] || 0);
+    }
+
+    function seriesMaximum(series) {
         var maximum = 1;
-        var index;
-        for (index = 0; index < downloadHistory.length; index += 1) {
-            maximum = Math.max(maximum, Number(downloadHistory[index]) || 0);
-        }
-        for (index = 0; index < uploadHistory.length; index += 1) {
-            maximum = Math.max(maximum, Number(uploadHistory[index]) || 0);
-        }
+        for (var i = 0; i < root.seriesLength(series); i += 1)
+            maximum = Math.max(maximum, root.seriesValue(series, i));
         return maximum;
+    }
+
+    function historyMaximum() {
+        return Math.max(root.seriesMaximum(root.downloadHistory), root.seriesMaximum(root.uploadHistory), 1);
     }
 
     Layout.fillWidth: true
@@ -49,8 +59,8 @@ ColumnLayout {
         Layout.fillWidth: true
         hero: true
         title: "Network"
-        subtitle: metrics && metrics.network && metrics.network.interfaces
-            ? Object.keys(metrics.network.interfaces).length + " interfaces"
+        subtitle: root.networkMetrics && root.networkMetrics.interfaces
+            ? Object.keys(root.networkMetrics.interfaces).length + " interfaces"
             : "Sem dados"
 
         RowLayout {
@@ -63,7 +73,7 @@ ColumnLayout {
                 value: theme.fmtBytes(root.downloadRate)
                 unit: "/s"
                 accentColor: theme.cpuColor
-                footnote: metrics && metrics.network ? ("Total: " + theme.fmtBytes(metrics.network.total_bytes_received)) : "-"
+                footnote: root.networkMetrics ? ("Total: " + theme.fmtBytes(root.networkMetrics.total_bytes_received)) : "-"
             }
 
             HeroMetric {
@@ -72,7 +82,7 @@ ColumnLayout {
                 value: theme.fmtBytes(root.uploadRate)
                 unit: "/s"
                 accentColor: theme.dangerColor
-                footnote: metrics && metrics.network ? ("Total: " + theme.fmtBytes(metrics.network.total_bytes_transmitted)) : "-"
+                footnote: root.networkMetrics ? ("Total: " + theme.fmtBytes(root.networkMetrics.total_bytes_transmitted)) : "-"
             }
         }
     }
@@ -89,7 +99,7 @@ ColumnLayout {
 
         HistoryChart {
             Layout.fillWidth: true
-            values: root.downloadHistory
+            series: root.downloadHistory
             strokeColor: theme.cpuColor
             maximumValue: root.historyMaximum()
             maxLabel: theme.fmtRate(root.historyMaximum())
@@ -103,7 +113,7 @@ ColumnLayout {
 
         HistoryChart {
             Layout.fillWidth: true
-            values: root.uploadHistory
+            series: root.uploadHistory
             strokeColor: theme.dangerColor
             maximumValue: root.historyMaximum()
             maxLabel: theme.fmtRate(root.historyMaximum())
@@ -116,9 +126,8 @@ ColumnLayout {
         title: "Details"
         subtitle: "Interfaces mais ativas"
 
-        // Gateway e latência
         RowLayout {
-            visible: metrics && metrics.network && metrics.network.gateway_ip
+            visible: root.networkMetrics && root.networkMetrics.gateway_ip
             Layout.fillWidth: true
             spacing: theme.spacingM
 
@@ -126,26 +135,26 @@ ColumnLayout {
                 Layout.fillWidth: true
                 accentColor: theme.systemColor
                 label: "Gateway"
-                value: metrics && metrics.network ? (metrics.network.gateway_ip || "-") : "-"
+                value: root.networkMetrics ? (root.networkMetrics.gateway_ip || "-") : "-"
             }
 
             MetricRow {
                 Layout.fillWidth: true
-                accentColor: metrics && metrics.network && metrics.network.gateway_latency_ms !== null
-                    && metrics.network.gateway_latency_ms !== undefined
-                    ? (metrics.network.gateway_latency_ms < 10 ? theme.successColor
-                       : metrics.network.gateway_latency_ms < 50 ? theme.warningColor
+                accentColor: root.networkMetrics && root.networkMetrics.gateway_latency_ms !== null
+                    && root.networkMetrics.gateway_latency_ms !== undefined
+                    ? (root.networkMetrics.gateway_latency_ms < 10 ? theme.successColor
+                       : root.networkMetrics.gateway_latency_ms < 50 ? theme.warningColor
                        : theme.dangerColor)
                     : theme.systemColor
                 label: "Latência"
-                value: metrics && metrics.network && metrics.network.gateway_latency_ms !== null
-                       && metrics.network.gateway_latency_ms !== undefined
-                    ? Number(metrics.network.gateway_latency_ms).toFixed(2) + " ms" : "-"
+                value: root.networkMetrics && root.networkMetrics.gateway_latency_ms !== null
+                       && root.networkMetrics.gateway_latency_ms !== undefined
+                    ? Number(root.networkMetrics.gateway_latency_ms).toFixed(2) + " ms" : "-"
             }
         }
 
         Rectangle {
-            visible: metrics && metrics.network && metrics.network.gateway_ip
+            visible: root.networkMetrics && root.networkMetrics.gateway_ip
             Layout.fillWidth: true
             Layout.preferredHeight: 1
             color: theme.outlineColor
@@ -154,13 +163,12 @@ ColumnLayout {
 
         Repeater {
             id: ifaceRepeater
-            model: root.asArray(metrics && metrics.network ? metrics.network.interfaces : null)
+            model: root.asArray(root.networkMetrics ? root.networkMetrics.interfaces : null)
 
             delegate: ColumnLayout {
                 Layout.fillWidth: true
                 spacing: theme.spacingXS
 
-                // Linha 1: ● nome da interface
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: theme.spacingS
@@ -183,12 +191,10 @@ ColumnLayout {
                     }
                 }
 
-                // Linha 2: ↓ bytes   ↑ bytes   [chip]
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: theme.spacingM
 
-                    // recuo alinhado com o nome
                     Item { Layout.preferredWidth: 8 + theme.spacingS }
 
                     PlasmaComponents3.Label {
@@ -210,7 +216,6 @@ ColumnLayout {
                     }
                 }
 
-                // Separador entre interfaces
                 Rectangle {
                     visible: index < ifaceRepeater.count - 1
                     Layout.fillWidth: true

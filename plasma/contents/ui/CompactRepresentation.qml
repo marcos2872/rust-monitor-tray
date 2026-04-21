@@ -9,7 +9,8 @@ Item {
     id: root
 
     required property PlasmoidItem plasmoidItem
-    property var metrics: ({})
+    property var cpuMetrics: ({})
+    property var memoryMetrics: ({})
 
     implicitWidth: 156
     implicitHeight: 24
@@ -53,7 +54,7 @@ Item {
             PlasmaComponents3.Label {
                 Layout.minimumWidth: 32
                 Layout.preferredWidth: 32
-                text: Math.round(root.metrics.cpu ? root.metrics.cpu.usage_percent : 0) + "%"
+                text: Math.round(root.cpuMetrics ? root.cpuMetrics.usage_percent : 0) + "%"
                 color: "#dbeafe"
                 font.bold: true
                 font.pixelSize: 10
@@ -88,7 +89,7 @@ Item {
             PlasmaComponents3.Label {
                 Layout.minimumWidth: 32
                 Layout.preferredWidth: 32
-                text: Math.round(root.metrics.memory ? root.metrics.memory.usage_percent : 0) + "%"
+                text: Math.round(root.memoryMetrics ? root.memoryMetrics.usage_percent : 0) + "%"
                 color: "#f3e8ff"
                 font.bold: true
                 font.pixelSize: 10

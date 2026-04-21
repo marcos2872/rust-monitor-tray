@@ -6,6 +6,7 @@ import ".."
 Item {
     id: root
 
+    property var series: null
     property var values: []
     property color strokeColor: "#60a5fa"
     property color fillColor: Qt.rgba(strokeColor.r, strokeColor.g, strokeColor.b, 0.18)
@@ -19,16 +20,36 @@ Item {
     implicitHeight: theme.chartHeight + 30
     Layout.fillWidth: true
 
-    function computedMaximum() {
-        if (root.maximumValue > root.minimumValue) {
-            return root.maximumValue;
+    function pointCount() {
+        if (root.series && root.series.count !== undefined)
+            return root.series.count;
+        if (root.values && root.values.length !== undefined)
+            return root.values.length;
+        return 0;
+    }
+
+    function pointValue(index) {
+        if (root.series && root.series.buffer && root.series.count !== undefined) {
+            if (index < 0 || index >= root.series.count)
+                return 0;
+            var actualIndex = (root.series.start + index) % root.series.buffer.length;
+            return Number(root.series.buffer[actualIndex] || 0);
         }
+        if (root.values && index >= 0 && index < root.values.length)
+            return Number(root.values[index] || 0);
+        return 0;
+    }
+
+    function computedMaximum() {
+        if (root.maximumValue > root.minimumValue)
+            return root.maximumValue;
+
         var maxValue = root.minimumValue;
-        for (var index = 0; index < root.values.length; index += 1) {
-            var value = Number(root.values[index]);
-            if (!isNaN(value)) {
+        var count = root.pointCount();
+        for (var index = 0; index < count; index += 1) {
+            var value = root.pointValue(index);
+            if (!isNaN(value))
                 maxValue = Math.max(maxValue, value);
-            }
         }
         return Math.max(maxValue, root.minimumValue + 1);
     }
@@ -37,7 +58,6 @@ Item {
         anchors.fill: parent
         spacing: theme.spacingXS
 
-        // Rótulo do topo: máximo Y alinhado à direita
         RowLayout {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }
@@ -63,7 +83,8 @@ Item {
                 antialiasing: true
 
                 function xForIndex(index, count, width) {
-                    if (count <= 1) return 0;
+                    if (count <= 1)
+                        return 0;
                     return index * (width / (count - 1));
                 }
 
@@ -77,9 +98,9 @@ Item {
                     var ctx = getContext("2d");
                     var width = canvas.width;
                     var height = canvas.height;
-                    if (ctx.reset) {
+                    var count = root.pointCount();
+                    if (ctx.reset)
                         ctx.reset();
-                    }
                     ctx.clearRect(0, 0, width, height);
 
                     var minValue = root.minimumValue;
@@ -95,19 +116,17 @@ Item {
                         ctx.stroke();
                     }
 
-                    if (!root.values || root.values.length === 0) {
+                    if (count === 0)
                         return;
-                    }
 
                     ctx.beginPath();
-                    for (var index = 0; index < root.values.length; index += 1) {
-                        var x = xForIndex(index, root.values.length, width);
-                        var yValue = yForValue(root.values[index], minValue, maxValue, height);
-                        if (index === 0) {
+                    for (var index = 0; index < count; index += 1) {
+                        var x = xForIndex(index, count, width);
+                        var yValue = yForValue(root.pointValue(index), minValue, maxValue, height);
+                        if (index === 0)
                             ctx.moveTo(x, yValue);
-                        } else {
+                        else
                             ctx.lineTo(x, yValue);
-                        }
                     }
                     ctx.lineTo(width, height);
                     ctx.lineTo(0, height);
@@ -116,14 +135,13 @@ Item {
                     ctx.fill();
 
                     ctx.beginPath();
-                    for (var lineIndex = 0; lineIndex < root.values.length; lineIndex += 1) {
-                        var lineX = xForIndex(lineIndex, root.values.length, width);
-                        var lineY = yForValue(root.values[lineIndex], minValue, maxValue, height);
-                        if (lineIndex === 0) {
+                    for (var lineIndex = 0; lineIndex < count; lineIndex += 1) {
+                        var lineX = xForIndex(lineIndex, count, width);
+                        var lineY = yForValue(root.pointValue(lineIndex), minValue, maxValue, height);
+                        if (lineIndex === 0)
                             ctx.moveTo(lineX, lineY);
-                        } else {
+                        else
                             ctx.lineTo(lineX, lineY);
-                        }
                     }
                     ctx.strokeStyle = root.strokeColor;
                     ctx.lineWidth = 2;
@@ -132,7 +150,6 @@ Item {
             }
         }
 
-        // Rodapé: passado à esquerda, agora + mínimo Y à direita
         RowLayout {
             Layout.fillWidth: true
             spacing: theme.spacingS
@@ -158,6 +175,7 @@ Item {
         }
     }
 
+    onSeriesChanged: canvas.requestPaint()
     onValuesChanged: canvas.requestPaint()
     onStrokeColorChanged: canvas.requestPaint()
     onFillColorChanged: canvas.requestPaint()

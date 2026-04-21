@@ -7,8 +7,9 @@ use sysinfo::{Components, DiskRefreshKind, Disks, Networks, ProcessRefreshKind, 
 
 use super::hwmon::{collect_hwmon_metrics_from_path, HWMON_BASE_PATH};
 use super::{
-    CpuMetrics, DiskInfo, DiskMetrics, GpuInfo, MemoryMetrics, NetworkInterface,
-    NetworkMetrics, ProcessInfo, SensorMetrics, SystemInfo, SystemMetrics, TemperatureSensor,
+    CpuMetrics, DiskInfo, DiskMetrics, FastMetrics, GpuInfo, MemoryMetrics, NetworkInterface,
+    NetworkMetrics, ProcessInfo, SensorMetrics, SlowMetrics, SystemInfo, SystemMetrics,
+    TemperatureSensor,
 };
 
 const BYTES_TO_GB: f64 = 1024.0 * 1024.0 * 1024.0;
@@ -180,7 +181,11 @@ async fn measure_gateway_latency() -> (Option<String>, Option<f32>) {
     }
 }
 
-fn process_refresh_kind() -> ProcessRefreshKind {
+fn process_refresh_kind_before() -> ProcessRefreshKind {
+    ProcessRefreshKind::nothing().with_cpu().without_tasks()
+}
+
+fn process_refresh_kind_after() -> ProcessRefreshKind {
     ProcessRefreshKind::nothing()
         .with_cpu()
         .with_memory()
@@ -256,17 +261,9 @@ impl SystemMonitor {
         }
     }
 
-    /// Atualiza todas as métricas.
-    /// O ciclo é dividido entre métricas rápidas (CPU, memória, disco, rede)
-    /// e métricas mais lentas (GPU, sensores, processos), reduzindo trabalho recorrente.
-    pub async fn update_metrics(&mut self) {
+    /// Atualiza apenas as métricas rápidas do ciclo quente.
+    pub async fn update_fast_metrics(&mut self) {
         let refresh_latency = should_refresh_every(&mut self.latency_cycle, LATENCY_INTERVAL_CYCLES);
-        let refresh_gpus = self.cached_gpus.is_empty()
-            || should_refresh_every(&mut self.gpu_cycle, GPU_INTERVAL_CYCLES);
-        let refresh_sensors = self.cached_sensors.is_none()
-            || should_refresh_every(&mut self.sensor_cycle, SENSOR_INTERVAL_CYCLES);
-        let refresh_processes = self.cached_top_processes.is_none()
-            || should_refresh_every(&mut self.process_cycle, PROCESS_INTERVAL_CYCLES);
         let refresh_cpu_frequency = should_refresh_every(
             &mut self.cpu_frequency_cycle,
             CPU_FREQUENCY_INTERVAL_CYCLES,
@@ -280,35 +277,20 @@ impl SystemMonitor {
 
         let cpu_stat_before = read_cpu_stat_raw();
         let disk_io_before = read_diskstats();
-        let process_refresh = process_refresh_kind();
 
-        // Primeira coleta: inicializa o delta de CPU e, quando necessário, de processos.
         self.system.refresh_cpu_usage();
-        if refresh_processes {
-            self.system.refresh_processes_specifics(ProcessesToUpdate::All, true, process_refresh);
-        }
 
         let window_start = Instant::now();
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         let elapsed_secs = window_start.elapsed().as_secs_f64().max(0.001);
 
-        // Segunda coleta: consolida valores finais do ciclo.
         self.system.refresh_cpu_usage();
         if refresh_cpu_frequency {
             self.system.refresh_cpu_frequency();
         }
         self.system.refresh_memory();
-        if refresh_processes {
-            self.system.refresh_processes_specifics(ProcessesToUpdate::All, true, process_refresh);
-            self.cached_top_processes = Some(self.collect_top_processes());
-        }
-
         self.disks.refresh_specifics(false, DiskRefreshKind::nothing().with_storage());
         self.networks.refresh(false);
-        if refresh_sensors {
-            self.components.refresh(false);
-            self.cached_sensors = Some(self.collect_sensor_metrics());
-        }
 
         if let (Some(b), Some(a)) = (cpu_stat_before, read_cpu_stat_raw()) {
             let (user, system, idle, steal) = compute_cpu_percents(&b, &a);
@@ -323,15 +305,56 @@ impl SystemMonitor {
         self.disk_read_rates = read_rates;
         self.disk_write_rates = write_rates;
 
-        if refresh_gpus {
-            self.cached_gpus = super::gpu::collect_gpu_metrics().await;
-        }
-
         if let Some(task) = ping_task {
             let (gw_ip, gw_lat) = task.await.unwrap_or((None, None));
             self.cached_gateway_ip = gw_ip;
             self.cached_gateway_latency_ms = gw_lat;
         }
+    }
+
+    /// Atualiza métricas mais lentas, com opção de forçar refresh no caminho split do frontend.
+    pub async fn refresh_slow_metrics(&mut self, force: bool) {
+        let refresh_gpus = force
+            || self.cached_gpus.is_empty()
+            || should_refresh_every(&mut self.gpu_cycle, GPU_INTERVAL_CYCLES);
+        let refresh_sensors = force
+            || self.cached_sensors.is_none()
+            || should_refresh_every(&mut self.sensor_cycle, SENSOR_INTERVAL_CYCLES);
+        let refresh_processes = force
+            || self.cached_top_processes.is_none()
+            || should_refresh_every(&mut self.process_cycle, PROCESS_INTERVAL_CYCLES);
+
+        if refresh_processes {
+            self.system.refresh_processes_specifics(
+                ProcessesToUpdate::All,
+                true,
+                process_refresh_kind_before(),
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            self.system.refresh_processes_specifics(
+                ProcessesToUpdate::All,
+                true,
+                process_refresh_kind_after(),
+            );
+            self.cached_top_processes = Some(self.collect_top_processes());
+        }
+
+        if refresh_sensors {
+            self.components.refresh(false);
+            self.cached_sensors = Some(self.collect_sensor_metrics());
+        }
+
+        if refresh_gpus {
+            self.cached_gpus = super::gpu::collect_gpu_metrics().await;
+        }
+    }
+
+    /// Atualiza todas as métricas.
+    /// O ciclo é dividido entre métricas rápidas (CPU, memória, disco, rede)
+    /// e métricas mais lentas (GPU, sensores, processos), reduzindo trabalho recorrente.
+    pub async fn update_metrics(&mut self) {
+        self.update_fast_metrics().await;
+        self.refresh_slow_metrics(false).await;
     }
 
     pub fn get_cpu_metrics(&self) -> CpuMetrics {
@@ -525,25 +548,52 @@ impl SystemMonitor {
             .unwrap_or_else(|| self.collect_top_processes())
     }
 
-    pub fn get_all_metrics(&self) -> SystemMetrics {
-        SystemMetrics {
-            cpu:     self.get_cpu_metrics(),
-            memory:  self.get_memory_metrics(),
-            disk:    self.get_disk_metrics(),
+    fn build_system_info(&self) -> SystemInfo {
+        SystemInfo {
+            hostname: System::host_name().unwrap_or_else(|| "unknown".to_string()),
+            os_name: System::name().unwrap_or_else(|| "Linux".to_string()),
+            os_version: System::os_version().unwrap_or_default(),
+            kernel_version: System::kernel_version().unwrap_or_default(),
+            architecture: System::cpu_arch(),
+            process_count: self.system.processes().len(),
+        }
+    }
+
+    pub fn get_fast_metrics(&self) -> FastMetrics {
+        let load_average = System::load_average();
+        FastMetrics {
+            cpu: self.get_cpu_metrics(),
+            memory: self.get_memory_metrics(),
+            disk: self.get_disk_metrics(),
             network: self.get_network_metrics(),
-            sensors: self.get_sensor_metrics(),
-            gpus:    self.cached_gpus.clone(),
-            top_processes: self.get_top_processes(),
-            system_info: SystemInfo {
-                hostname:       System::host_name().unwrap_or_else(|| "unknown".to_string()),
-                os_name:        System::name().unwrap_or_else(|| "Linux".to_string()),
-                os_version:     System::os_version().unwrap_or_default(),
-                kernel_version: System::kernel_version().unwrap_or_default(),
-                architecture:   System::cpu_arch(),
-                process_count:  self.system.processes().len(),
-            },
             uptime: System::uptime(),
-            load_average: { let la = System::load_average(); (la.one, la.five, la.fifteen) },
+            load_average: (load_average.one, load_average.five, load_average.fifteen),
+        }
+    }
+
+    pub fn get_slow_metrics(&self) -> SlowMetrics {
+        SlowMetrics {
+            sensors: self.get_sensor_metrics(),
+            gpus: self.cached_gpus.clone(),
+            top_processes: self.get_top_processes(),
+            system_info: self.build_system_info(),
+        }
+    }
+
+    pub fn get_all_metrics(&self) -> SystemMetrics {
+        let fast = self.get_fast_metrics();
+        let slow = self.get_slow_metrics();
+        SystemMetrics {
+            cpu: fast.cpu,
+            memory: fast.memory,
+            disk: fast.disk,
+            network: fast.network,
+            sensors: slow.sensors,
+            gpus: slow.gpus,
+            top_processes: slow.top_processes,
+            system_info: slow.system_info,
+            uptime: fast.uptime,
+            load_average: fast.load_average,
         }
     }
 }

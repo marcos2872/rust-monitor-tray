@@ -6,27 +6,37 @@ import ".."
 ColumnLayout {
     id: root
 
-    property var metrics: ({})
-    property var diskReadHistory: []
-    property var diskWriteHistory: []
+    property var diskMetrics: ({})
+    property var diskReadHistory: ({})
+    property var diskWriteHistory: ({})
     property real diskReadRate: 0
     property real diskWriteRate: 0
 
-    function ioHistoryMaximum() {
+    function seriesLength(series) {
+        return series && series.count !== undefined ? series.count : 0;
+    }
+
+    function seriesValue(series, index) {
+        if (!series || !series.buffer || index < 0 || index >= root.seriesLength(series))
+            return 0;
+        var actualIndex = (series.start + index) % series.buffer.length;
+        return Number(series.buffer[actualIndex] || 0);
+    }
+
+    function seriesMaximum(series) {
         var maximum = 1;
-        var i;
-        for (i = 0; i < diskReadHistory.length; i += 1) {
-            maximum = Math.max(maximum, Number(diskReadHistory[i]) || 0);
-        }
-        for (i = 0; i < diskWriteHistory.length; i += 1) {
-            maximum = Math.max(maximum, Number(diskWriteHistory[i]) || 0);
-        }
+        for (var i = 0; i < root.seriesLength(series); i += 1)
+            maximum = Math.max(maximum, root.seriesValue(series, i));
         return maximum;
     }
 
+    function ioHistoryMaximum() {
+        return Math.max(root.seriesMaximum(root.diskReadHistory), root.seriesMaximum(root.diskWriteHistory), 1);
+    }
+
     function primaryDisk() {
-        var rows = metrics && metrics.disk && metrics.disk.disks
-            ? metrics.disk.disks.slice(0)
+        var rows = root.diskMetrics && root.diskMetrics.disks
+            ? root.diskMetrics.disks.slice(0)
             : [];
         if (rows.length === 0) return null;
         rows.sort(function(a, b) {
@@ -39,8 +49,8 @@ ColumnLayout {
 
     function secondaryDisks() {
         var primary = root.cachedPrimaryDisk;
-        var rows = metrics && metrics.disk && metrics.disk.disks
-            ? metrics.disk.disks.slice(0)
+        var rows = root.diskMetrics && root.diskMetrics.disks
+            ? root.diskMetrics.disks.slice(0)
             : [];
         rows = rows.filter(function(item) {
             return !primary || item.mount_point !== primary.mount_point;
@@ -49,14 +59,12 @@ ColumnLayout {
         return rows.slice(0, 4);
     }
 
-    // Propriedades calculadas uma vez por ciclo de métricas
-    readonly property var cachedPrimaryDisk: metrics ? primaryDisk() : null
-    readonly property var cachedSecondaryDisks: metrics ? secondaryDisks() : []
+    readonly property var cachedPrimaryDisk: root.diskMetrics ? primaryDisk() : null
+    readonly property var cachedSecondaryDisks: root.diskMetrics ? secondaryDisks() : []
 
     Layout.fillWidth: true
     spacing: theme.spacingM
 
-    // ── Hero: disco principal ───────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         hero: true
@@ -91,7 +99,6 @@ ColumnLayout {
         }
     }
 
-    // ── I/O Activity ────────────────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "I/O Activity"
@@ -123,7 +130,7 @@ ColumnLayout {
 
         HistoryChart {
             Layout.fillWidth: true
-            values: root.diskReadHistory
+            series: root.diskReadHistory
             strokeColor: theme.diskColor
             maximumValue: root.ioHistoryMaximum()
             maxLabel: theme.fmtRate(root.ioHistoryMaximum())
@@ -137,7 +144,7 @@ ColumnLayout {
 
         HistoryChart {
             Layout.fillWidth: true
-            values: root.diskWriteHistory
+            series: root.diskWriteHistory
             strokeColor: theme.dangerColor
             maximumValue: root.ioHistoryMaximum()
             maxLabel: theme.fmtRate(root.ioHistoryMaximum())
@@ -145,7 +152,6 @@ ColumnLayout {
         }
     }
 
-    // ── Partições secundárias ───────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "Partições"

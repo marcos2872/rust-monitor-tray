@@ -7,15 +7,12 @@ import ".."
 ColumnLayout {
     id: root
 
-    property var metrics: ({})
-    property var gpuHistory: []
+    property var gpus: []
+    property var gpuHistory: ({})
     property int historyDurationMs: 5 * 60 * 1000
 
-    // Acesso direto sem Repeater — evita recriação de delegates a cada atualização
-    readonly property var primaryGpu: metrics && metrics.gpus && metrics.gpus.length > 0
-        ? metrics.gpus[0] : null
-    readonly property var extraGpus: metrics && metrics.gpus && metrics.gpus.length > 1
-        ? metrics.gpus.slice(1) : []
+    readonly property var primaryGpu: root.gpus && root.gpus.length > 0 ? root.gpus[0] : null
+    readonly property var extraGpus: root.gpus && root.gpus.length > 1 ? root.gpus.slice(1) : []
 
     function historyWindowLabel() {
         return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
@@ -43,7 +40,6 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: theme.spacingM
 
-    // ── Sem GPU ─────────────────────────────────────────────────────────────
     MetricCard {
         visible: root.primaryGpu === null
         Layout.fillWidth: true
@@ -60,9 +56,6 @@ ColumnLayout {
         }
     }
 
-    // ── GPU primária — binding direto, sem Repeater ──────────────────────────
-
-    // Hero: temperatura · uso · potência
     MetricCard {
         visible: root.primaryGpu !== null
         Layout.fillWidth: true
@@ -109,7 +102,6 @@ ColumnLayout {
         }
     }
 
-    // Histórico de uso
     MetricCard {
         visible: root.primaryGpu !== null && root.primaryGpu.usage_percent !== null
         Layout.fillWidth: true
@@ -118,7 +110,7 @@ ColumnLayout {
 
         HistoryChart {
             Layout.fillWidth: true
-            values: root.gpuHistory
+            series: root.gpuHistory
             strokeColor: theme.gpuColor
             maximumValue: 100
             maxLabel: "100%"
@@ -126,7 +118,6 @@ ColumnLayout {
         }
     }
 
-    // VRAM
     MetricCard {
         visible: root.primaryGpu !== null && root.primaryGpu.vram_total_gb !== null
         Layout.fillWidth: true
@@ -157,7 +148,6 @@ ColumnLayout {
         }
     }
 
-    // Details
     MetricCard {
         visible: root.primaryGpu !== null
         Layout.fillWidth: true
@@ -202,7 +192,6 @@ ColumnLayout {
         }
     }
 
-    // ── GPUs secundárias (compacto) ──────────────────────────────────────────
     Repeater {
         model: root.extraGpus
 

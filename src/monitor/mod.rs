@@ -5,9 +5,9 @@ mod models;
 
 pub use collector::SystemMonitor;
 pub use models::{
-    CpuMetrics, CurrentSensor, DiskInfo, DiskMetrics, FanSensor, GpuInfo, GpuVendor,
-    MemoryMetrics, NetworkInterface, NetworkMetrics, PowerSensor, ProcessInfo, SensorMetrics,
-    SystemInfo, SystemMetrics, TemperatureSensor, VoltageSensor,
+    CpuMetrics, CurrentSensor, DiskInfo, DiskMetrics, FanSensor, FastMetrics, GpuInfo,
+    GpuVendor, MemoryMetrics, NetworkInterface, NetworkMetrics, PowerSensor, ProcessInfo,
+    SensorMetrics, SlowMetrics, SystemInfo, SystemMetrics, TemperatureSensor, VoltageSensor,
 };
 
 #[cfg(test)]

@@ -32,7 +32,7 @@ curl -fsSL https://raw.githubusercontent.com/marcos2872/rust-monitor-tray/main/i
 
 ## O que é
 
-Widget para o painel do KDE Plasma que exibe métricas do sistema em tempo real. O binário Rust coleta os dados e os expõe via **DBus**; o Plasmoid QML consome essa interface e renderiza a UI com 7 abas.
+Widget para o painel do KDE Plasma que exibe métricas do sistema em tempo real. O binário Rust coleta os dados e os expõe via **DBus** em snapshots rápidos/lentos; o Plasmoid QML consome essa interface por um cliente DBus persistente e renderiza a UI com 7 abas.
 
 | Aba | Métricas principais |
 |---|---|

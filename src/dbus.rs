@@ -3,7 +3,10 @@ use std::error::Error;
 use tokio::sync::Mutex;
 use zbus::{interface, ConnectionBuilder};
 
-use crate::{collect_metrics_json, monitor::SystemMonitor, DBUS_OBJECT_PATH, DBUS_SERVICE_NAME};
+use crate::{
+    collect_fast_metrics_json, collect_metrics_json, collect_slow_metrics_json,
+    monitor::SystemMonitor, DBUS_OBJECT_PATH, DBUS_SERVICE_NAME,
+};
 
 pub struct MetricsBackend {
     monitor: Mutex<SystemMonitor>,
@@ -32,6 +35,20 @@ impl MetricsBackend {
     async fn get_metrics_json(&self) -> zbus::fdo::Result<String> {
         let mut monitor = self.monitor.lock().await;
         collect_metrics_json(&mut monitor)
+            .await
+            .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))
+    }
+
+    async fn fast_metrics_json(&self) -> zbus::fdo::Result<String> {
+        let mut monitor = self.monitor.lock().await;
+        collect_fast_metrics_json(&mut monitor)
+            .await
+            .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))
+    }
+
+    async fn slow_metrics_json(&self) -> zbus::fdo::Result<String> {
+        let mut monitor = self.monitor.lock().await;
+        collect_slow_metrics_json(&mut monitor)
             .await
             .map_err(|err| zbus::fdo::Error::Failed(err.to_string()))
     }

@@ -7,11 +7,8 @@ import ".."
 ColumnLayout {
     id: root
 
-    property var metrics: ({})
+    property var sensorMetrics: ({})
 
-    // Código morto removido: temperaturesSorted() não era chamado diretamente.
-
-    /// Mapeia o nome técnico do chip para uma categoria legível.
     function chipCategory(chip) {
         var name = (chip || "").toLowerCase();
         if (name === "coretemp" || name === "k10temp" || name === "zenpower" || name.indexOf("cpu") >= 0)
@@ -25,10 +22,9 @@ ColumnLayout {
         return chip;
     }
 
-    /// Agrupa os sensores de temperatura por chip/categoria, ordenando por temperatura dentro de cada grupo.
     function temperatureGroups() {
-        var sensors = metrics && metrics.sensors && metrics.sensors.temperatures
-            ? metrics.sensors.temperatures.slice(0) : [];
+        var sensors = root.sensorMetrics && root.sensorMetrics.temperatures
+            ? root.sensorMetrics.temperatures.slice(0) : [];
         var groupMap = {};
         var groupOrder = [];
         for (var i = 0; i < sensors.length; i++) {
@@ -39,20 +35,17 @@ ColumnLayout {
             }
             groupMap[cat].push(sensors[i]);
         }
-        // ordena sensores dentro de cada grupo por nome (estável)
         for (var j = 0; j < groupOrder.length; j++) {
             groupMap[groupOrder[j]].sort(function(a, b) {
                 return (a.label || "").localeCompare(b.label || "");
             });
         }
         var result = [];
-        for (var k = 0; k < groupOrder.length; k++) {
+        for (var k = 0; k < groupOrder.length; k++)
             result.push({ category: groupOrder[k], sensors: groupMap[groupOrder[k]] });
-        }
         return result;
     }
 
-    // Cor do indicador baseada na faixa de temperatura
     function temperatureAccentColor(celsius) {
         var tempCelsius = celsius || 0;
         if (tempCelsius >= 85) return theme.dangerColor;
@@ -61,25 +54,25 @@ ColumnLayout {
     }
 
     function fansSorted() {
-        var rows = metrics && metrics.sensors && metrics.sensors.fans ? metrics.sensors.fans.slice(0) : [];
+        var rows = root.sensorMetrics && root.sensorMetrics.fans ? root.sensorMetrics.fans.slice(0) : [];
         rows.sort(function(a, b) { return a.label.localeCompare(b.label); });
         return rows;
     }
 
     function voltagesSorted() {
-        var rows = metrics && metrics.sensors && metrics.sensors.voltages ? metrics.sensors.voltages.slice(0) : [];
+        var rows = root.sensorMetrics && root.sensorMetrics.voltages ? root.sensorMetrics.voltages.slice(0) : [];
         rows.sort(function(a, b) { return a.label.localeCompare(b.label); });
         return rows;
     }
 
     function currentsSorted() {
-        var rows = metrics && metrics.sensors && metrics.sensors.currents ? metrics.sensors.currents.slice(0) : [];
+        var rows = root.sensorMetrics && root.sensorMetrics.currents ? root.sensorMetrics.currents.slice(0) : [];
         rows.sort(function(a, b) { return a.label.localeCompare(b.label); });
         return rows;
     }
 
     function powersSorted() {
-        var rows = metrics && metrics.sensors && metrics.sensors.powers ? metrics.sensors.powers.slice(0) : [];
+        var rows = root.sensorMetrics && root.sensorMetrics.powers ? root.sensorMetrics.powers.slice(0) : [];
         rows.sort(function(a, b) { return (b.watts || 0) - (a.watts || 0); });
         return rows;
     }
@@ -90,7 +83,7 @@ ColumnLayout {
     }
 
     function sensorState() {
-        var hottest = metrics && metrics.sensors ? metrics.sensors.hottest_temperature_celsius : null;
+        var hottest = root.sensorMetrics ? root.sensorMetrics.hottest_temperature_celsius : null;
         if (hottest === undefined || hottest === null || isNaN(hottest)) return "Sem dados";
         if (Number(hottest) >= 85) return "Crítico";
         if (Number(hottest) >= 70) return "Quente";
@@ -108,12 +101,11 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: theme.spacingM
 
-    // Propriedades calculadas uma vez por ciclo de métricas
-    readonly property var cachedTemperatureGroups: metrics ? temperatureGroups() : []
-    readonly property var cachedFans:      metrics ? fansSorted()      : []
-    readonly property var cachedVoltages:  metrics ? voltagesSorted()  : []
-    readonly property var cachedCurrents:  metrics ? currentsSorted()  : []
-    readonly property var cachedPowers:    metrics ? powersSorted()    : []
+    readonly property var cachedTemperatureGroups: root.sensorMetrics ? temperatureGroups() : []
+    readonly property var cachedFans: root.sensorMetrics ? fansSorted() : []
+    readonly property var cachedVoltages: root.sensorMetrics ? voltagesSorted() : []
+    readonly property var cachedCurrents: root.sensorMetrics ? currentsSorted() : []
+    readonly property var cachedPowers: root.sensorMetrics ? powersSorted() : []
 
     MetricCard {
         Layout.fillWidth: true
@@ -130,13 +122,13 @@ ColumnLayout {
                 label: "Estado"
                 value: root.sensorState()
                 accentColor: root.sensorStateColor()
-                footnote: metrics && metrics.sensors && metrics.sensors.hottest_label ? metrics.sensors.hottest_label : "sem sensor dominante"
+                footnote: root.sensorMetrics && root.sensorMetrics.hottest_label ? root.sensorMetrics.hottest_label : "sem sensor dominante"
             }
 
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Pico"
-                value: root.fmtTemp(metrics && metrics.sensors ? metrics.sensors.hottest_temperature_celsius : null)
+                value: root.fmtTemp(root.sensorMetrics ? root.sensorMetrics.hottest_temperature_celsius : null)
                 accentColor: theme.dangerColor
                 footnote: "temperatura mais alta"
             }
@@ -173,7 +165,7 @@ ColumnLayout {
         Layout.fillWidth: true
         title: "Temperature"
         subtitle: {
-            var total = metrics && metrics.sensors ? metrics.sensors.temperatures.length : 0;
+            var total = root.sensorMetrics ? root.sensorMetrics.temperatures.length : 0;
             var groups = root.cachedTemperatureGroups.length;
             return total > 0 ? total + " sensores · " + groups + " categorias" : "Sem leituras de temperatura";
         }
@@ -185,14 +177,12 @@ ColumnLayout {
                 Layout.fillWidth: true
                 spacing: theme.spacingXS
 
-                // Cabeçalho da categoria
                 SectionHeader {
                     Layout.fillWidth: true
                     title: modelData.category
                     subtitle: modelData.sensors.length + " sensor" + (modelData.sensors.length !== 1 ? "es" : "")
                 }
 
-                // Sensores da categoria
                 Repeater {
                     model: modelData.sensors
 

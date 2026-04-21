@@ -6,8 +6,11 @@ import ".."
 ColumnLayout {
     id: root
 
-    property var metrics: ({})
-    property var history: []
+    property var cpuMetrics: ({})
+    property var sensorMetrics: ({})
+    property int uptime: 0
+    property var loadAverage: [0, 0, 0]
+    property var history: ({})
     property int historyDurationMs: 5 * 60 * 1000
 
     function fmtPercent(value) {
@@ -22,12 +25,11 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: theme.spacingM
 
-    // ── Hero: temperatura · uso total · load 1 min ──────────────────────────
     MetricCard {
         Layout.fillWidth: true
         hero: true
         title: "CPU"
-        subtitle: metrics && metrics.cpu ? metrics.cpu.name : "Sem dados"
+        subtitle: root.cpuMetrics ? root.cpuMetrics.name : "Sem dados"
 
         RowLayout {
             Layout.fillWidth: true
@@ -36,20 +38,20 @@ ColumnLayout {
             HeroMetric {
                 Layout.preferredWidth: 110
                 label: "Temperatura"
-                value: metrics && metrics.sensors && metrics.sensors.hottest_cpu_celsius !== null
-                       && metrics.sensors.hottest_cpu_celsius !== undefined
-                    ? Number(metrics.sensors.hottest_cpu_celsius).toFixed(1) : "-"
-                unit: metrics && metrics.sensors && metrics.sensors.hottest_cpu_celsius !== null
-                      && metrics.sensors.hottest_cpu_celsius !== undefined ? "°C" : ""
+                value: root.sensorMetrics && root.sensorMetrics.hottest_cpu_celsius !== null
+                       && root.sensorMetrics.hottest_cpu_celsius !== undefined
+                    ? Number(root.sensorMetrics.hottest_cpu_celsius).toFixed(1) : "-"
+                unit: root.sensorMetrics && root.sensorMetrics.hottest_cpu_celsius !== null
+                      && root.sensorMetrics.hottest_cpu_celsius !== undefined ? "°C" : ""
                 accentColor: theme.dangerColor
-                footnote: metrics && metrics.sensors && metrics.sensors.hottest_cpu_label
-                    ? metrics.sensors.hottest_cpu_label : "sem sensor de CPU"
+                footnote: root.sensorMetrics && root.sensorMetrics.hottest_cpu_label
+                    ? root.sensorMetrics.hottest_cpu_label : "sem sensor de CPU"
             }
 
             RingGauge {
                 Layout.alignment: Qt.AlignHCenter
-                value: metrics && metrics.cpu ? metrics.cpu.usage_percent : 0
-                centerText: root.fmtPercent(metrics && metrics.cpu ? metrics.cpu.usage_percent : 0)
+                value: root.cpuMetrics ? root.cpuMetrics.usage_percent : 0
+                centerText: root.fmtPercent(root.cpuMetrics ? root.cpuMetrics.usage_percent : 0)
                 label: "Uso total"
                 accentColor: theme.cpuColor
             }
@@ -57,16 +59,13 @@ ColumnLayout {
             HeroMetric {
                 Layout.preferredWidth: 110
                 label: "Carga 1m"
-                value: metrics && metrics.load_average
-                    ? Number(metrics.load_average[0]).toFixed(2)
-                    : "0.00"
+                value: root.loadAverage ? Number(root.loadAverage[0]).toFixed(2) : "0.00"
                 accentColor: theme.warningColor
                 footnote: "load average"
             }
         }
     }
 
-    // ── Histórico de uso ────────────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "Usage history"
@@ -74,7 +73,7 @@ ColumnLayout {
 
         HistoryChart {
             Layout.fillWidth: true
-            values: root.history
+            series: root.history
             strokeColor: theme.cpuColor
             maximumValue: 100
             maxLabel: "100%"
@@ -82,7 +81,6 @@ ColumnLayout {
         }
     }
 
-    // ── Details: user / system / idle / uptime ──────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "Details"
@@ -92,46 +90,43 @@ ColumnLayout {
             Layout.fillWidth: true
             accentColor: theme.cpuColor
             label: "User"
-            value: root.fmtPercent(metrics && metrics.cpu ? metrics.cpu.user_percent : 0)
+            value: root.fmtPercent(root.cpuMetrics ? root.cpuMetrics.user_percent : 0)
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.dangerColor
             label: "System"
-            value: root.fmtPercent(metrics && metrics.cpu ? metrics.cpu.system_percent : 0)
+            value: root.fmtPercent(root.cpuMetrics ? root.cpuMetrics.system_percent : 0)
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.successColor
             label: "Idle"
-            value: root.fmtPercent(metrics && metrics.cpu ? metrics.cpu.idle_percent : 0)
+            value: root.fmtPercent(root.cpuMetrics ? root.cpuMetrics.idle_percent : 0)
         }
 
         MetricRow {
-            visible: metrics && metrics.cpu && metrics.cpu.steal_percent > 0.1
+            visible: root.cpuMetrics && root.cpuMetrics.steal_percent > 0.1
             Layout.fillWidth: true
             accentColor: theme.dangerColor
             label: "Steal"
-            value: root.fmtPercent(metrics && metrics.cpu ? metrics.cpu.steal_percent : 0)
+            value: root.fmtPercent(root.cpuMetrics ? root.cpuMetrics.steal_percent : 0)
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.systemColor
             label: "Uptime"
-            value: theme.fmtUptime(metrics ? metrics.uptime : 0)
+            value: theme.fmtUptime(root.uptime)
         }
     }
 
-    // ── Grade de uso por núcleo ─────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "Core usage"
-        subtitle: metrics && metrics.cpu
-            ? metrics.cpu.core_count + " núcleos"
-            : "-"
+        subtitle: root.cpuMetrics ? root.cpuMetrics.core_count + " núcleos" : "-"
 
         GridLayout {
             Layout.fillWidth: true
@@ -140,8 +135,8 @@ ColumnLayout {
             rowSpacing: theme.spacingXS
 
             Repeater {
-                model: metrics && metrics.cpu && metrics.cpu.per_core_usage
-                    ? metrics.cpu.per_core_usage
+                model: root.cpuMetrics && root.cpuMetrics.per_core_usage
+                    ? root.cpuMetrics.per_core_usage
                     : []
 
                 delegate: MetricRow {
@@ -155,7 +150,6 @@ ColumnLayout {
         }
     }
 
-    // ── Average load: 1 / 5 / 15 minutos ───────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "Average load"
@@ -165,31 +159,24 @@ ColumnLayout {
             Layout.fillWidth: true
             accentColor: theme.warningColor
             label: "1 minuto"
-            value: metrics && metrics.load_average
-                ? Number(metrics.load_average[0]).toFixed(2)
-                : "0.00"
+            value: root.loadAverage ? Number(root.loadAverage[0]).toFixed(2) : "0.00"
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.warningColor
             label: "5 minutos"
-            value: metrics && metrics.load_average
-                ? Number(metrics.load_average[1]).toFixed(2)
-                : "0.00"
+            value: root.loadAverage ? Number(root.loadAverage[1]).toFixed(2) : "0.00"
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.warningColor
             label: "15 minutos"
-            value: metrics && metrics.load_average
-                ? Number(metrics.load_average[2]).toFixed(2)
-                : "0.00"
+            value: root.loadAverage ? Number(root.loadAverage[2]).toFixed(2) : "0.00"
         }
     }
 
-    // ── Frequência ──────────────────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "Frequency"
@@ -199,9 +186,7 @@ ColumnLayout {
             Layout.fillWidth: true
             accentColor: theme.cpuColor
             label: "Todos os núcleos"
-            value: metrics && metrics.cpu
-                ? metrics.cpu.frequency + " MHz"
-                : "-"
+            value: root.cpuMetrics ? root.cpuMetrics.frequency + " MHz" : "-"
         }
     }
 

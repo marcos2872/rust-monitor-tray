@@ -8,8 +8,8 @@ Esta página é uma **visão geral para contribuidores**. Ela resume como o proj
 
 O Monitor Tray separa **coleta de dados** e **apresentação**:
 
-- **backend Rust**: coleta métricas do sistema Linux, monta um snapshot JSON e expõe via Session DBus;
-- **frontend QML**: consulta esse snapshot a cada `1500 ms`, mantém histórico local e renderiza a UI do plasmoid.
+- **backend Rust**: coleta métricas do sistema Linux, monta snapshots JSON rápidos/lentos e expõe via Session DBus;
+- **frontend QML**: consulta esses snapshots por um cliente DBus persistente assíncrono, separa polling rápido/lento, mantém histórico local e renderiza a UI do plasmoid.
 
 ```mermaid
 graph LR
@@ -34,10 +34,12 @@ graph LR
 
 ## Fluxo resumido
 
-1. O frontend chama `GetMetricsJson` via DBus.
-2. O backend atualiza CPU, memória, disco, rede, sensores, GPUs e processos.
-3. O backend devolve um JSON serializado.
-4. O QML aplica os dados, recalcula históricos locais e re-renderiza a aba ativa.
+1. O frontend chama `FastMetricsJson` no caminho quente e `SlowMetricsJson` no caminho lento.
+2. O backend atualiza CPU, memória, disco e rede separadamente de sensores, GPUs e processos.
+3. O backend devolve JSONs menores por classe de métrica.
+4. O QML aplica os dados por subsistema, recalcula históricos locais e re-renderiza só a parte necessária.
+
+> O frontend não usa mais `gdbus call` como subprocesso por amostra; agora usa o módulo `org.kde.plasma.workspace.dbus` e faz fallback para `GetMetricsJson` apenas por compatibilidade.
 
 ---
 

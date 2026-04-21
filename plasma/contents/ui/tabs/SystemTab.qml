@@ -7,23 +7,19 @@ import ".."
 ColumnLayout {
     id: root
 
-    property var metrics: ({})
-
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    function sysInfo() {
-        return metrics && metrics.system_info ? metrics.system_info : {};
-    }
+    property var systemInfo: ({})
+    property var topProcesses: []
+    property int uptime: 0
+    property var loadAverage: [0, 0, 0]
 
     Layout.fillWidth: true
     spacing: theme.spacingM
 
-    // ── Hero: identificação do host ──────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         hero: true
-        title: sysInfo().hostname || "Sistema"
-        subtitle: (sysInfo().os_name || "Linux") + " " + (sysInfo().os_version || "")
+        title: root.systemInfo.hostname || "Sistema"
+        subtitle: (root.systemInfo.os_name || "Linux") + " " + (root.systemInfo.os_version || "")
 
         RowLayout {
             Layout.fillWidth: true
@@ -32,7 +28,7 @@ ColumnLayout {
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Uptime"
-                value: theme.fmtUptime(metrics ? metrics.uptime : 0)
+                value: theme.fmtUptime(root.uptime)
                 accentColor: theme.systemColor
                 footnote: "desde o boot"
             }
@@ -40,7 +36,7 @@ ColumnLayout {
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Processos"
-                value: sysInfo().process_count ? String(sysInfo().process_count) : "-"
+                value: root.systemInfo.process_count ? String(root.systemInfo.process_count) : "-"
                 accentColor: theme.cpuColor
                 footnote: "em execução"
             }
@@ -48,44 +44,42 @@ ColumnLayout {
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Arquitetura"
-                value: sysInfo().architecture || "-"
+                value: root.systemInfo.architecture || "-"
                 accentColor: theme.systemColor
-                footnote: sysInfo().kernel_version
-                    ? sysInfo().kernel_version.split("-")[0]
+                footnote: root.systemInfo.kernel_version
+                    ? root.systemInfo.kernel_version.split("-")[0]
                     : "kernel"
             }
         }
     }
 
-    // ── Kernel + OS ──────────────────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "Sistema operacional"
-        subtitle: sysInfo().os_name || "Linux"
+        subtitle: root.systemInfo.os_name || "Linux"
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.systemColor
             label: "Distribuição"
-            value: (sysInfo().os_name || "-") + " " + (sysInfo().os_version || "")
+            value: (root.systemInfo.os_name || "-") + " " + (root.systemInfo.os_version || "")
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.systemColor
             label: "Kernel"
-            value: sysInfo().kernel_version || "-"
+            value: root.systemInfo.kernel_version || "-"
         }
 
         MetricRow {
             Layout.fillWidth: true
             accentColor: theme.systemColor
             label: "Hostname"
-            value: sysInfo().hostname || "-"
+            value: root.systemInfo.hostname || "-"
         }
     }
 
-    // ── Load average ─────────────────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "Load average"
@@ -98,38 +92,31 @@ ColumnLayout {
             HeroMetric {
                 Layout.fillWidth: true
                 label: "1 minuto"
-                value: metrics && metrics.load_average
-                    ? Number(metrics.load_average[0]).toFixed(2) : "0.00"
+                value: root.loadAverage ? Number(root.loadAverage[0]).toFixed(2) : "0.00"
                 accentColor: theme.warningColor
             }
 
             HeroMetric {
                 Layout.fillWidth: true
                 label: "5 minutos"
-                value: metrics && metrics.load_average
-                    ? Number(metrics.load_average[1]).toFixed(2) : "0.00"
+                value: root.loadAverage ? Number(root.loadAverage[1]).toFixed(2) : "0.00"
                 accentColor: theme.warningColor
             }
 
             HeroMetric {
                 Layout.fillWidth: true
                 label: "15 minutos"
-                value: metrics && metrics.load_average
-                    ? Number(metrics.load_average[2]).toFixed(2) : "0.00"
+                value: root.loadAverage ? Number(root.loadAverage[2]).toFixed(2) : "0.00"
                 accentColor: theme.warningColor
             }
         }
     }
 
-    // ── Resumo de recursos ───────────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
         title: "Processos"
-        subtitle: metrics && metrics.top_processes
-            ? metrics.top_processes.length + " com maior uso de CPU"
-            : "Coletando..."
+        subtitle: root.topProcesses ? root.topProcesses.length + " com maior uso de CPU" : "Coletando..."
 
-        // Cabeçalho da tabela
         RowLayout {
             Layout.fillWidth: true
             spacing: theme.spacingS
@@ -160,7 +147,7 @@ ColumnLayout {
         }
 
         Repeater {
-            model: metrics && metrics.top_processes ? metrics.top_processes : []
+            model: root.topProcesses || []
 
             delegate: RowLayout {
                 Layout.fillWidth: true

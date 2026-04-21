@@ -12,8 +12,8 @@ Este documento é a referência técnica da arquitetura. Ele descreve **como o s
 
 O Monitor Tray separa a coleta de métricas do sistema da apresentação visual:
 
-- **backend Rust**: coleta métricas Linux, mantém caches e expõe `GetMetricsJson()` via Session DBus;
-- **frontend QML**: consulta o backend a cada `1500 ms`, mantém histórico local e renderiza 7 abas.
+- **backend Rust**: coleta métricas Linux, mantém caches e expõe snapshots via Session DBus (`GetMetricsJson`, `FastMetricsJson`, `SlowMetricsJson`);
+- **frontend QML**: consulta o backend por um cliente DBus persistente assíncrono, separa polling rápido/lento, mantém histórico local e renderiza 7 abas.
 
 Essa separação evita lógica pesada no Plasmoid e concentra o acesso a `/proc`, `/sys` e subprocessos no binário Rust.
 
@@ -54,8 +54,8 @@ graph LR
     Backend -->|lê arquivos e sysinfo| Linux
     Backend -->|consulta opcional| NvidiaSmi
     Backend -->|mede gateway a cada ~10s| Ping
-    Backend -->|publica GetMetricsJson()| DBus
-    Frontend -->|gdbus call a cada 1500 ms| DBus
+    Backend -->|publica GetMetricsJson / FastMetricsJson / SlowMetricsJson| DBus
+    Frontend -->|asyncCall assíncrono via SessionBus| DBus
 ```
 
 ---
@@ -95,15 +95,19 @@ sequenceDiagram
     participant N as nvidia-smi
     participant P as ping gateway
 
-    loop a cada 1500 ms
-        Q->>D: GetMetricsJson
-        D->>B: update_metrics()
+    loop rápido: 1500 ms expandido / 3000 ms compacto
+        Q->>D: asyncCall(FastMetricsJson)
+        D->>B: update_fast_metrics()
         B->>L: snapshot /proc/stat e /proc/diskstats
         B->>L: refresh sysinfo #1
         B->>B: sleep 200 ms
         B->>L: refresh sysinfo #2
         B->>B: calcula deltas de CPU e disco
-        B->>N: coleta GPU NVIDIA (assíncrona, se aplicável)
+        opt polling lento separado
+            Q->>D: asyncCall(SlowMetricsJson)
+            D->>B: refresh_slow_metrics(force=true)
+            B->>N: coleta GPU NVIDIA (assíncrona, se aplicável)
+        end
         opt a cada ~10 s
             B->>L: lê /proc/net/route
             B->>P: ping -c1 -W1 gateway
@@ -133,9 +137,11 @@ Responsável por:
 
 Responsável por:
 
-- consultar o DBus a cada `1500 ms`;
+- consultar o DBus por `DBus.SessionBus.asyncCall(...)`;
+- usar polling rápido dinâmico: `1500 ms` expandido e `3000 ms` no modo compacto;
+- usar polling lento separado para métricas caras quando o popup está expandido;
 - calcular taxa instantânea de download/upload via delta local;
-- manter histórico circular de CPU, RAM, GPU, disco e rede;
+- manter histórico circular detalhado apenas quando o popup está expandido;
 - renderizar as abas `CPU`, `RAM`, `GPU`, `Disk`, `Network`, `Sensors` e `System`.
 
 ---
@@ -146,12 +152,12 @@ Responsável por:
 |---|---|---|
 | `src/main.rs` | entry point | Interpreta `--dbus`, `--json` e `--help` |
 | `src/lib.rs` | API pública | Funções de coleta/serialização e constantes DBus |
-| `src/dbus.rs` | serviço | Expõe `Ping` e `GetMetricsJson` via `zbus` |
-| `src/monitor/collector.rs` | backend | `SystemMonitor`, deltas, caches e composição do payload |
+| `src/dbus.rs` | serviço | Expõe `Ping`, `GetMetricsJson`, `FastMetricsJson` e `SlowMetricsJson` via `zbus` |
+| `src/monitor/collector.rs` | backend | `SystemMonitor`, deltas, caches e composição dos payloads rápido/lento |
 | `src/monitor/gpu.rs` | backend | Coleta AMD/Intel via sysfs e NVIDIA via `nvidia-smi` |
 | `src/monitor/hwmon.rs` | backend | Leitura de sensores em `/sys/class/hwmon` |
-| `src/monitor/models.rs` | backend | Modelos serializáveis do payload JSON |
-| `plasma/contents/ui/main.qml` | frontend | Polling DBus, histórico local, estado global |
+| `src/monitor/models.rs` | backend | Modelos serializáveis dos payloads JSON |
+| `plasma/contents/ui/main.qml` | frontend | Polling DBus rápido/lento, histórico local e estado segmentado |
 | `plasma/contents/ui/FullRepresentation.qml` | frontend | Layout do popup com `TabBar` fixa |
 | `plasma/contents/ui/CompactRepresentation.qml` | frontend | Resumo compacto no painel |
 | `plasma/contents/ui/Theme.qml` | frontend | Paleta, espaçamentos e formatadores |
@@ -175,7 +181,21 @@ Responsável por:
 - `top_processes` é calculado a partir de `self.system.processes()`;
 - os itens são ordenados por `cpu_percent` decrescente;
 - `cpu_percent` é **normalizado por `core_count`**, para representar `0–100%` do sistema todo;
+- a lista é cacheada no backend e atualizada com frequência menor que CPU/rede/disco;
 - o frontend exibe os 15 processos com maior uso de CPU na aba **System**.
+
+### Cliente DBus persistente no frontend
+
+O frontend não usa mais subprocessos `gdbus call` para cada amostra.
+
+Em vez disso, `plasma/contents/ui/main.qml` usa:
+
+- `org.kde.plasma.workspace.dbus`;
+- `DBus.SessionBus.asyncCall(...)` para chamar `FastMetricsJson` e `SlowMetricsJson`;
+- `DBus.DBusServiceWatcher` para detectar quando o backend entra ou sai do barramento;
+- fallback automático para `GetMetricsJson` quando o backend ainda estiver em versão antiga.
+
+Isso reduz overhead de spawn/exec, elimina parsing do wrapper textual do `gdbus`, diminui o payload quente e torna o polling mais estável.
 
 ### Sensores dedicados para CPU e GPU
 

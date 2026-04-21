@@ -20,27 +20,35 @@ Item {
     Layout.maximumWidth: 480
     Layout.maximumHeight: 760
 
-    property var metrics: ({})
+    property var cpuMetrics: ({})
+    property var memoryMetrics: ({})
+    property var diskMetrics: ({})
+    property var networkMetrics: ({})
+    property var sensorMetrics: ({})
+    property var systemInfoMetrics: ({})
+    property var gpuMetrics: []
+    property var topProcesses: []
+    property int uptime: 0
+    property var loadAverage: [0, 0, 0]
     property string errorMessage: ""
-    property var cpuHistory: []
-    property var memoryHistory: []
-    property var networkDownloadHistory: []
-    property var networkUploadHistory: []
+    property var cpuHistory: ({})
+    property var memoryHistory: ({})
+    property var networkDownloadHistory: ({})
+    property var networkUploadHistory: ({})
     property real networkDownloadRate: 0
     property real networkUploadRate: 0
     property int historyDurationMs: 5 * 60 * 1000
-    property var diskReadHistory: []
-    property var diskWriteHistory: []
+    property var diskReadHistory: ({})
+    property var diskWriteHistory: ({})
     property real diskReadRate: 0
     property real diskWriteRate: 0
-    property var gpuHistory: []
+    property var gpuHistory: ({})
     property int currentTab: 0
 
     function isLoading() {
-        return errorMessage.length === 0 && (!metrics.cpu || metrics.cpu.name === "");
+        return errorMessage.length === 0 && (!cpuMetrics || cpuMetrics.name === "");
     }
 
-    // ── Seção fixa: cabeçalho + barra de tabs ────────────────────────────────
     ColumnLayout {
         id: fixedSection
         anchors.top: parent.top
@@ -53,7 +61,7 @@ Item {
             title: "Monitor do Sistema"
             subtitle: root.errorMessage.length > 0
                 ? root.errorMessage
-                : (root.isLoading() ? "Coletando métricas..." : "Uptime: " + theme.fmtUptime(metrics.uptime))
+                : (root.isLoading() ? "Coletando métricas..." : "Uptime: " + theme.fmtUptime(root.uptime))
         }
 
         PlasmaComponents3.TabBar {
@@ -73,7 +81,6 @@ Item {
         }
     }
 
-    // ── Área de scroll: apenas o conteúdo ───────────────────────────────────
     PlasmaComponents3.ScrollView {
         id: scrollView
         anchors.top: fixedSection.bottom
@@ -133,13 +140,14 @@ Item {
         }
     }
 
-    // ── Componentes das tabs ─────────────────────────────────────────────────
-
     Component {
         id: cpuTabComponent
         CpuTab {
             width: scrollView.availableWidth
-            metrics: root.metrics
+            cpuMetrics: root.cpuMetrics
+            sensorMetrics: root.sensorMetrics
+            uptime: root.uptime
+            loadAverage: root.loadAverage
             history: root.cpuHistory
             historyDurationMs: root.historyDurationMs
         }
@@ -149,7 +157,7 @@ Item {
         id: memoryTabComponent
         MemoryTab {
             width: scrollView.availableWidth
-            metrics: root.metrics
+            memoryMetrics: root.memoryMetrics
             history: root.memoryHistory
             historyDurationMs: root.historyDurationMs
         }
@@ -159,7 +167,7 @@ Item {
         id: gpuTabComponent
         GpuTab {
             width: scrollView.availableWidth
-            metrics: root.metrics
+            gpus: root.gpuMetrics
             gpuHistory: root.gpuHistory
             historyDurationMs: root.historyDurationMs
         }
@@ -169,7 +177,7 @@ Item {
         id: diskTabComponent
         DiskTab {
             width: scrollView.availableWidth
-            metrics: root.metrics
+            diskMetrics: root.diskMetrics
             diskReadHistory: root.diskReadHistory
             diskWriteHistory: root.diskWriteHistory
             diskReadRate: root.diskReadRate
@@ -181,7 +189,7 @@ Item {
         id: networkTabComponent
         NetworkTab {
             width: scrollView.availableWidth
-            metrics: root.metrics
+            networkMetrics: root.networkMetrics
             downloadHistory: root.networkDownloadHistory
             uploadHistory: root.networkUploadHistory
             downloadRate: root.networkDownloadRate
@@ -194,7 +202,7 @@ Item {
         id: sensorsTabComponent
         SensorsTab {
             width: scrollView.availableWidth
-            metrics: root.metrics
+            sensorMetrics: root.sensorMetrics
         }
     }
 
@@ -202,7 +210,10 @@ Item {
         id: systemTabComponent
         SystemTab {
             width: scrollView.availableWidth
-            metrics: root.metrics
+            systemInfo: root.systemInfoMetrics
+            topProcesses: root.topProcesses
+            uptime: root.uptime
+            loadAverage: root.loadAverage
         }
     }
 
