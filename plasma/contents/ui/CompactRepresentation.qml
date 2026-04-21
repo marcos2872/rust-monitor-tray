@@ -11,11 +11,11 @@ Item {
     required property PlasmoidItem plasmoidItem
     property var metrics: ({})
 
-    implicitWidth: 136
+    implicitWidth: 156
     implicitHeight: 24
-    Layout.minimumWidth: 128
-    Layout.preferredWidth: 136
-    Layout.maximumWidth: 156
+    Layout.minimumWidth: 148
+    Layout.preferredWidth: 156
+    Layout.maximumWidth: 176
     Layout.minimumHeight: 24
     Layout.preferredHeight: 24
     clip: true
@@ -51,10 +51,13 @@ Item {
             }
 
             PlasmaComponents3.Label {
+                Layout.minimumWidth: 32
+                Layout.preferredWidth: 32
                 text: Math.round(root.metrics.cpu ? root.metrics.cpu.usage_percent : 0) + "%"
                 color: "#dbeafe"
                 font.bold: true
                 font.pixelSize: 10
+                horizontalAlignment: Text.AlignRight
             }
         }
 
@@ -83,10 +86,13 @@ Item {
             }
 
             PlasmaComponents3.Label {
+                Layout.minimumWidth: 32
+                Layout.preferredWidth: 32
                 text: Math.round(root.metrics.memory ? root.metrics.memory.usage_percent : 0) + "%"
                 color: "#f3e8ff"
                 font.bold: true
                 font.pixelSize: 10
+                horizontalAlignment: Text.AlignRight
             }
         }
     }
