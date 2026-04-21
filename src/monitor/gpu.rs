@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 
 use super::{GpuInfo, GpuVendor};
+
+static NVIDIA_PROBE_FAILED: AtomicBool = AtomicBool::new(false);
 
 const BYTES_TO_GB: f64 = 1024.0 * 1024.0 * 1024.0;
 
@@ -279,10 +282,14 @@ pub async fn collect_gpu_metrics() -> Vec<GpuInfo> {
         }
     }
 
-    // NVIDIA: detectado no DRM (driver moderno) ou sem DRM (driver legado)
-    let nvidia = collect_nvidia_gpus().await;
-    if found_nvidia_drm || !nvidia.is_empty() {
-        gpus.extend(nvidia);
+    // NVIDIA: evita subprocesso recorrente em máquinas sem driver/GPU NVIDIA.
+    if found_nvidia_drm || !NVIDIA_PROBE_FAILED.load(AtomicOrdering::Relaxed) {
+        let nvidia = collect_nvidia_gpus().await;
+        if found_nvidia_drm || !nvidia.is_empty() {
+            gpus.extend(nvidia);
+        } else {
+            NVIDIA_PROBE_FAILED.store(true, AtomicOrdering::Relaxed);
+        }
     }
 
     gpus

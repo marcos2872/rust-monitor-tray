@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
 
-use sysinfo::{Components, Disks, Networks, System};
+use sysinfo::{Components, DiskRefreshKind, Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System};
 
 use super::hwmon::{collect_hwmon_metrics_from_path, HWMON_BASE_PATH};
 use super::{
@@ -16,6 +16,14 @@ const SECTOR_BYTES: f64 = 512.0;
 const TOP_PROCESSES: usize = 15;
 /// Mede latência a cada N ciclos (~10s com sampleInterval de 1500ms).
 const LATENCY_INTERVAL_CYCLES: u32 = 7;
+/// Atualiza GPU com menor frequência para evitar scan de DRM e `nvidia-smi` em todo ciclo.
+const GPU_INTERVAL_CYCLES: u32 = 3;
+/// Atualiza sensores com menor frequência, sem perder responsividade percebida.
+const SENSOR_INTERVAL_CYCLES: u32 = 2;
+/// Atualiza processos com menor frequência, reduzindo custo de `/proc/<pid>`.
+const PROCESS_INTERVAL_CYCLES: u32 = 2;
+/// Frequência muda pouco; não precisa ser atualizada em todo tick.
+const CPU_FREQUENCY_INTERVAL_CYCLES: u32 = 10;
 
 pub(crate) fn bytes_to_gb(bytes: u64) -> f64 {
     bytes as f64 / BYTES_TO_GB
@@ -172,6 +180,27 @@ async fn measure_gateway_latency() -> (Option<String>, Option<f32>) {
     }
 }
 
+fn process_refresh_kind() -> ProcessRefreshKind {
+    ProcessRefreshKind::nothing()
+        .with_cpu()
+        .with_memory()
+        .without_tasks()
+}
+
+fn should_refresh_every(counter: &mut u32, interval_cycles: u32) -> bool {
+    if interval_cycles <= 1 {
+        return true;
+    }
+    if *counter + 1 >= interval_cycles {
+        *counter = 0;
+        true
+    } else {
+        *counter += 1;
+        false
+    }
+}
+
+
 // ---------------------------------------------------------------------------
 // SystemMonitor
 // ---------------------------------------------------------------------------
@@ -188,9 +217,15 @@ pub struct SystemMonitor {
     pub(crate) disk_read_rates: HashMap<String, u64>,
     pub(crate) disk_write_rates: HashMap<String, u64>,
     pub(crate) cached_gpus: Vec<GpuInfo>,
+    pub(crate) cached_sensors: Option<SensorMetrics>,
+    pub(crate) cached_top_processes: Option<Vec<ProcessInfo>>,
     pub(crate) cached_gateway_ip: Option<String>,
     pub(crate) cached_gateway_latency_ms: Option<f32>,
     pub(crate) latency_cycle: u32,
+    pub(crate) gpu_cycle: u32,
+    pub(crate) sensor_cycle: u32,
+    pub(crate) process_cycle: u32,
+    pub(crate) cpu_frequency_cycle: u32,
 }
 
 impl Default for SystemMonitor {
@@ -210,59 +245,91 @@ impl SystemMonitor {
             cpu_idle_percent: 0.0, cpu_steal_percent:  0.0,
             disk_read_rates: HashMap::new(), disk_write_rates: HashMap::new(),
             cached_gpus: vec![],
+            cached_sensors: None,
+            cached_top_processes: None,
             cached_gateway_ip: None, cached_gateway_latency_ms: None,
             latency_cycle: 0,
+            gpu_cycle: 0,
+            sensor_cycle: 0,
+            process_cycle: 0,
+            cpu_frequency_cycle: 0,
         }
     }
 
     /// Atualiza todas as métricas.
-    /// O ping do gateway só roda a cada LATENCY_INTERVAL_CYCLES ciclos (~10s),
-    /// reduzindo subprocessos de 40/min para ~6/min.
+    /// O ciclo é dividido entre métricas rápidas (CPU, memória, disco, rede)
+    /// e métricas mais lentas (GPU, sensores, processos), reduzindo trabalho recorrente.
     pub async fn update_metrics(&mut self) {
-        // Dispara ping apenas quando o contador atingir o intervalo
-        self.latency_cycle += 1;
-        let ping_task = if self.latency_cycle >= LATENCY_INTERVAL_CYCLES {
-            self.latency_cycle = 0;
+        let refresh_latency = should_refresh_every(&mut self.latency_cycle, LATENCY_INTERVAL_CYCLES);
+        let refresh_gpus = self.cached_gpus.is_empty()
+            || should_refresh_every(&mut self.gpu_cycle, GPU_INTERVAL_CYCLES);
+        let refresh_sensors = self.cached_sensors.is_none()
+            || should_refresh_every(&mut self.sensor_cycle, SENSOR_INTERVAL_CYCLES);
+        let refresh_processes = self.cached_top_processes.is_none()
+            || should_refresh_every(&mut self.process_cycle, PROCESS_INTERVAL_CYCLES);
+        let refresh_cpu_frequency = should_refresh_every(
+            &mut self.cpu_frequency_cycle,
+            CPU_FREQUENCY_INTERVAL_CYCLES,
+        );
+
+        let ping_task = if refresh_latency {
             Some(tokio::spawn(measure_gateway_latency()))
         } else {
             None
         };
 
         let cpu_stat_before = read_cpu_stat_raw();
-        let disk_io_before  = read_diskstats();
+        let disk_io_before = read_diskstats();
+        let process_refresh = process_refresh_kind();
 
-        self.system.refresh_all();
-        self.disks.refresh(false);
-        self.networks.refresh(false);
-        self.components.refresh(false);
+        // Primeira coleta: inicializa o delta de CPU e, quando necessário, de processos.
+        self.system.refresh_cpu_usage();
+        if refresh_processes {
+            self.system.refresh_processes_specifics(ProcessesToUpdate::All, true, process_refresh);
+        }
 
         let window_start = Instant::now();
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         let elapsed_secs = window_start.elapsed().as_secs_f64().max(0.001);
 
-        self.system.refresh_all();
-        self.disks.refresh(false);
+        // Segunda coleta: consolida valores finais do ciclo.
+        self.system.refresh_cpu_usage();
+        if refresh_cpu_frequency {
+            self.system.refresh_cpu_frequency();
+        }
+        self.system.refresh_memory();
+        if refresh_processes {
+            self.system.refresh_processes_specifics(ProcessesToUpdate::All, true, process_refresh);
+            self.cached_top_processes = Some(self.collect_top_processes());
+        }
+
+        self.disks.refresh_specifics(false, DiskRefreshKind::nothing().with_storage());
         self.networks.refresh(false);
-        self.components.refresh(false);
+        if refresh_sensors {
+            self.components.refresh(false);
+            self.cached_sensors = Some(self.collect_sensor_metrics());
+        }
 
         if let (Some(b), Some(a)) = (cpu_stat_before, read_cpu_stat_raw()) {
             let (user, system, idle, steal) = compute_cpu_percents(&b, &a);
-            self.cpu_user_percent   = user;
+            self.cpu_user_percent = user;
             self.cpu_system_percent = system;
-            self.cpu_idle_percent   = idle;
-            self.cpu_steal_percent  = steal;
+            self.cpu_idle_percent = idle;
+            self.cpu_steal_percent = steal;
         }
 
-        let (read_rates, write_rates) = compute_disk_io_rates(&disk_io_before, &read_diskstats(), elapsed_secs);
-        self.disk_read_rates  = read_rates;
+        let (read_rates, write_rates) =
+            compute_disk_io_rates(&disk_io_before, &read_diskstats(), elapsed_secs);
+        self.disk_read_rates = read_rates;
         self.disk_write_rates = write_rates;
 
-        self.cached_gpus = super::gpu::collect_gpu_metrics().await;
+        if refresh_gpus {
+            self.cached_gpus = super::gpu::collect_gpu_metrics().await;
+        }
 
-        // Atualiza latência apenas quando o ping foi disparado neste ciclo
         if let Some(task) = ping_task {
             let (gw_ip, gw_lat) = task.await.unwrap_or((None, None));
-            self.cached_gateway_ip         = gw_ip;
+            self.cached_gateway_ip = gw_ip;
             self.cached_gateway_latency_ms = gw_lat;
         }
     }
@@ -333,7 +400,7 @@ impl SystemMonitor {
         }
     }
 
-    pub fn get_sensor_metrics(&self) -> SensorMetrics {
+    fn collect_sensor_metrics(&self) -> SensorMetrics {
         let hwmon = collect_hwmon_metrics_from_path(Path::new(HWMON_BASE_PATH));
         let (hwmon_temps, fans, voltages, currents, powers) =
             (hwmon.temperatures, hwmon.fans, hwmon.voltages, hwmon.currents, hwmon.powers);
@@ -341,66 +408,121 @@ impl SystemMonitor {
         let temperatures: Vec<TemperatureSensor> = if !hwmon_temps.is_empty() {
             hwmon_temps
         } else {
-            self.components.iter().filter_map(|c| {
-                let t = c.temperature()?;
-                if !t.is_finite() { return None; }
-                let label = c.label().trim();
-                Some(TemperatureSensor {
-                    label: if label.is_empty() { "Sensor".to_string() } else { label.to_string() },
-                    chip: "Sistema".to_string(), temperature_celsius: t,
-                    max_celsius: c.max().filter(|v| v.is_finite()),
-                    critical_celsius: c.critical().filter(|v| v.is_finite()),
+            self.components
+                .iter()
+                .filter_map(|c| {
+                    let t = c.temperature()?;
+                    if !t.is_finite() {
+                        return None;
+                    }
+                    let label = c.label().trim();
+                    Some(TemperatureSensor {
+                        label: if label.is_empty() {
+                            "Sensor".to_string()
+                        } else {
+                            label.to_string()
+                        },
+                        chip: "Sistema".to_string(),
+                        temperature_celsius: t,
+                        max_celsius: c.max().filter(|v| v.is_finite()),
+                        critical_celsius: c.critical().filter(|v| v.is_finite()),
+                    })
                 })
-            }).collect()
+                .collect()
         };
 
-        let average_temperature_celsius = if temperatures.is_empty() { None } else {
-            Some(temperatures.iter().map(|s| s.temperature_celsius).sum::<f32>() / temperatures.len() as f32)
+        let average_temperature_celsius = if temperatures.is_empty() {
+            None
+        } else {
+            Some(
+                temperatures
+                    .iter()
+                    .map(|s| s.temperature_celsius)
+                    .sum::<f32>()
+                    / temperatures.len() as f32,
+            )
         };
 
-        fn max_by_temp<'a>(iter: impl Iterator<Item = &'a TemperatureSensor>) -> Option<&'a TemperatureSensor> {
-            iter.max_by(|l, r| l.temperature_celsius.partial_cmp(&r.temperature_celsius).unwrap_or(Ordering::Equal))
+        fn max_by_temp<'a>(
+            iter: impl Iterator<Item = &'a TemperatureSensor>,
+        ) -> Option<&'a TemperatureSensor> {
+            iter.max_by(|l, r| {
+                l.temperature_celsius
+                    .partial_cmp(&r.temperature_celsius)
+                    .unwrap_or(Ordering::Equal)
+            })
         }
 
-        let hottest          = max_by_temp(temperatures.iter());
-        let cpu_chips        = ["coretemp", "k10temp", "zenpower"];
-        let gpu_chips        = ["amdgpu", "radeon", "nouveau"];
-        let hottest_cpu      = max_by_temp(temperatures.iter().filter(|s| cpu_chips.iter().any(|&c| s.chip.to_lowercase() == c)));
-        let hottest_gpu_chip = max_by_temp(temperatures.iter().filter(|s| gpu_chips.iter().any(|&c| s.chip.to_lowercase() == c)));
+        fn chip_matches(sensor: &TemperatureSensor, chips: &[&str]) -> bool {
+            chips.iter().any(|chip| sensor.chip.eq_ignore_ascii_case(chip))
+        }
 
-        // Extrai os dados antes de mover `temperatures` para o struct
+        let hottest = max_by_temp(temperatures.iter());
+        let cpu_chips = ["coretemp", "k10temp", "zenpower"];
+        let gpu_chips = ["amdgpu", "radeon", "nouveau"];
+        let hottest_cpu =
+            max_by_temp(temperatures.iter().filter(|s| chip_matches(s, &cpu_chips)));
+        let hottest_gpu_chip =
+            max_by_temp(temperatures.iter().filter(|s| chip_matches(s, &gpu_chips)));
+
         let hottest_temperature_celsius = hottest.map(|s| s.temperature_celsius);
-        let hottest_label               = hottest.map(|s| s.label.clone()).unwrap_or_default();
-        let hottest_cpu_celsius         = hottest_cpu.map(|s| s.temperature_celsius);
-        let hottest_cpu_label           = hottest_cpu.map(|s| s.label.clone()).unwrap_or_default();
-        let hottest_gpu_celsius         = hottest_gpu_chip.map(|s| s.temperature_celsius);
-        let hottest_gpu_label           = hottest_gpu_chip.map(|s| s.label.clone()).unwrap_or_default();
+        let hottest_label = hottest.map(|s| s.label.clone()).unwrap_or_default();
+        let hottest_cpu_celsius = hottest_cpu.map(|s| s.temperature_celsius);
+        let hottest_cpu_label = hottest_cpu.map(|s| s.label.clone()).unwrap_or_default();
+        let hottest_gpu_celsius = hottest_gpu_chip.map(|s| s.temperature_celsius);
+        let hottest_gpu_label = hottest_gpu_chip.map(|s| s.label.clone()).unwrap_or_default();
 
         SensorMetrics {
-            temperatures, average_temperature_celsius,
-            hottest_temperature_celsius, hottest_label,
-            hottest_cpu_celsius, hottest_cpu_label,
-            hottest_gpu_celsius, hottest_gpu_label,
-            fans, voltages, currents, powers,
+            temperatures,
+            average_temperature_celsius,
+            hottest_temperature_celsius,
+            hottest_label,
+            hottest_cpu_celsius,
+            hottest_cpu_label,
+            hottest_gpu_celsius,
+            hottest_gpu_label,
+            fans,
+            voltages,
+            currents,
+            powers,
         }
+    }
+
+    pub fn get_sensor_metrics(&self) -> SensorMetrics {
+        self.cached_sensors
+            .clone()
+            .unwrap_or_else(|| self.collect_sensor_metrics())
+    }
+
+    fn collect_top_processes(&self) -> Vec<ProcessInfo> {
+        let core_count = self.system.cpus().len().max(1) as f32;
+        let mut procs: Vec<ProcessInfo> = self
+            .system
+            .processes()
+            .values()
+            .map(|p| ProcessInfo {
+                pid: p.pid().as_u32(),
+                name: p.name().to_string_lossy().to_string(),
+                cpu_percent: p.cpu_usage() / core_count,
+                memory_mb: p.memory() as f64 / (1024.0 * 1024.0),
+            })
+            .filter(|p| p.cpu_percent > 0.0 || p.memory_mb > 1.0)
+            .collect();
+        procs.sort_by(|a, b| {
+            b.cpu_percent
+                .partial_cmp(&a.cpu_percent)
+                .unwrap_or(Ordering::Equal)
+        });
+        procs.truncate(TOP_PROCESSES);
+        procs
     }
 
     /// Retorna os TOP_PROCESSES processos com maior uso de CPU,
     /// normalizado pelo número de cores (0-100% do total do sistema).
     pub fn get_top_processes(&self) -> Vec<ProcessInfo> {
-        let core_count = self.system.cpus().len().max(1) as f32;
-        let mut procs: Vec<ProcessInfo> = self.system.processes().values()
-            .map(|p| ProcessInfo {
-                pid:         p.pid().as_u32(),
-                name:        p.name().to_string_lossy().to_string(),
-                cpu_percent: p.cpu_usage() / core_count,
-                memory_mb:   p.memory() as f64 / (1024.0 * 1024.0),
-            })
-            .filter(|p| p.cpu_percent > 0.0 || p.memory_mb > 1.0)
-            .collect();
-        procs.sort_by(|a, b| b.cpu_percent.partial_cmp(&a.cpu_percent).unwrap_or(Ordering::Equal));
-        procs.truncate(TOP_PROCESSES);
-        procs
+        self.cached_top_processes
+            .clone()
+            .unwrap_or_else(|| self.collect_top_processes())
     }
 
     pub fn get_all_metrics(&self) -> SystemMetrics {

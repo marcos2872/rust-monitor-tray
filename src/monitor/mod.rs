@@ -103,9 +103,15 @@ mod tests {
             disk_read_rates: std::collections::HashMap::new(),
             disk_write_rates: std::collections::HashMap::new(),
             cached_gpus: vec![],
+            cached_sensors: None,
+            cached_top_processes: None,
             cached_gateway_ip: None,
             cached_gateway_latency_ms: None,
             latency_cycle: 0,
+            gpu_cycle: 0,
+            sensor_cycle: 0,
+            process_cycle: 0,
+            cpu_frequency_cycle: 0,
         };
 
         let cpu = monitor.get_cpu_metrics();
@@ -135,9 +141,15 @@ mod tests {
             disk_read_rates: std::collections::HashMap::new(),
             disk_write_rates: std::collections::HashMap::new(),
             cached_gpus: vec![],
+            cached_sensors: None,
+            cached_top_processes: None,
             cached_gateway_ip: None,
             cached_gateway_latency_ms: None,
             latency_cycle: 0,
+            gpu_cycle: 0,
+            sensor_cycle: 0,
+            process_cycle: 0,
+            cpu_frequency_cycle: 0,
         };
 
         let memory = monitor.get_memory_metrics();
