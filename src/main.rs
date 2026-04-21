@@ -774,6 +774,24 @@ fn spawn_metrics_thread(tx: mpsc::Sender<SystemMetrics>) {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    match std::env::args().nth(1).as_deref() {
+        Some("--json") => {
+            let rt = tokio::runtime::Runtime::new()?;
+            println!("{}", rt.block_on(monitor_tray::collect_metrics_once_json())?);
+            return Ok(());
+        }
+        Some("--dbus") => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(monitor_tray::dbus::run_dbus_service())?;
+            return Ok(());
+        }
+        Some("--help") | Some("-h") => {
+            println!("monitor-tray\n\nUso:\n  monitor-tray           inicia a UI legada GTK\n  monitor-tray --json    imprime uma amostra de métricas em JSON\n  monitor-tray --dbus    inicia o backend DBus para o Plasmoid KDE");
+            return Ok(());
+        }
+        _ => {}
+    }
+
     let app = Application::builder()
         .application_id("com.monitor.tray")
         .build();

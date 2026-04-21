@@ -79,6 +79,58 @@ Procure por "Monitor Tray" no launcher de aplicações
 3. **Inicialização automática:**
 O aplicativo está configurado para aparecer nas opções de inicialização automática do sistema
 
+## 🧩 Integração com KDE Plasma
+
+O repositório agora inclui uma base de **Plasmoid** em `plasma/` para uma integração mais profunda com o KDE.
+
+### Modos do backend Rust
+
+```bash
+# inicia a UI legada GTK/AppIndicator
+cargo run
+
+# imprime uma amostra de métricas em JSON
+cargo run -- --json
+
+# inicia o backend DBus para o frontend KDE
+cargo run -- --dbus
+```
+
+### Estrutura do Plasmoid
+
+```text
+plasma/
+├── metadata.json
+└── contents/
+    ├── config/config.qml
+    └── ui/
+        ├── main.qml
+        ├── CompactRepresentation.qml
+        ├── FullRepresentation.qml
+        ├── Popup.qml
+        ├── Theme.qml
+        └── components/
+            ├── MetricBar.qml
+            ├── MetricCard.qml
+            ├── MetricRow.qml
+            ├── SectionHeader.qml
+            └── StatusChip.qml
+```
+
+### Fluxo sugerido no KDE
+
+```bash
+# opção simples: instala/recarrega o plasmoid e sobe o backend DBus
+make kde-dev
+
+# ou, separando os passos:
+make kde-refresh
+cargo run -- --dbus
+```
+
+> O Plasmoid agora consome as métricas via **DBus** (`com.monitortray.Backend`) em vez de executar
+> o binário a cada atualização.
+
 ## 🛠️ Desenvolvimento
 
 ### Pré-requisitos

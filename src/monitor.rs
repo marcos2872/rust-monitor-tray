@@ -97,11 +97,13 @@ impl SystemMonitor {
 
     pub async fn update_metrics(&mut self) {
         self.system.refresh_all();
-        // Disks and Networks need to be refreshed with 'true' parameter
-        // to fully update all data
-        // Wait minimum interval for accurate CPU measurements
+        self.disks.refresh(false);
+        self.networks.refresh(false);
+        // Wait minimum interval for accurate CPU measurements.
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         self.system.refresh_all();
+        self.disks.refresh(false);
+        self.networks.refresh(false);
     }
 
     pub fn get_cpu_metrics(&self) -> CpuMetrics {
