@@ -1,6 +1,5 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
-import org.kde.plasma.components 3.0 as PlasmaComponents3
 import "../components"
 import ".."
 
@@ -63,44 +62,37 @@ ColumnLayout {
 
     MetricCard {
         Layout.fillWidth: true
-        title: "Rede"
-        subtitle: metrics && metrics.network ? (root.asArray(metrics.network.interfaces).length + " interfaces monitoradas") : "Sem dados"
+        hero: true
+        title: "Network"
+        subtitle: root.historyWindowLabel()
 
-        GridLayout {
+        RowLayout {
             Layout.fillWidth: true
-            columns: 2
-            columnSpacing: theme.spacingS
-            rowSpacing: theme.spacingXS
+            spacing: theme.spacingM
 
-            MetricRow {
+            HeroMetric {
                 Layout.fillWidth: true
-                label: "RX total"
-                value: metrics && metrics.network ? root.fmtBytes(metrics.network.total_bytes_received) : "-"
+                label: "Download"
+                value: root.fmtBytes(root.downloadRate)
+                unit: "/s"
+                accentColor: theme.cpuColor
+                footnote: metrics && metrics.network ? ("Total: " + root.fmtBytes(metrics.network.total_bytes_received)) : "-"
             }
 
-            MetricRow {
+            HeroMetric {
                 Layout.fillWidth: true
-                label: "TX total"
-                value: metrics && metrics.network ? root.fmtBytes(metrics.network.total_bytes_transmitted) : "-"
-            }
-
-            MetricRow {
-                Layout.fillWidth: true
-                label: "RX atual"
-                value: root.fmtRate(root.downloadRate)
-            }
-
-            MetricRow {
-                Layout.fillWidth: true
-                label: "TX atual"
-                value: root.fmtRate(root.uploadRate)
+                label: "Upload"
+                value: root.fmtBytes(root.uploadRate)
+                unit: "/s"
+                accentColor: theme.dangerColor
+                footnote: metrics && metrics.network ? ("Total: " + root.fmtBytes(metrics.network.total_bytes_transmitted)) : "-"
             }
         }
     }
 
     MetricCard {
         Layout.fillWidth: true
-        title: "Histórico"
+        title: "Usage history"
         subtitle: root.historyWindowLabel()
 
         SectionHeader {
@@ -136,14 +128,15 @@ ColumnLayout {
 
     MetricCard {
         Layout.fillWidth: true
-        title: "Interfaces mais ativas"
-        subtitle: "Ordenadas por tráfego total"
+        title: "Details"
+        subtitle: "Interfaces mais ativas"
 
         Repeater {
             model: root.asArray(metrics && metrics.network ? metrics.network.interfaces : null)
 
             delegate: MetricRow {
                 Layout.fillWidth: true
+                accentColor: theme.networkColor
                 label: modelData.name
                 value: "↓ " + root.fmtBytes(modelData.data.bytes_received) + " · ↑ " + root.fmtBytes(modelData.data.bytes_transmitted)
             }

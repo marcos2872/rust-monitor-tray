@@ -1,6 +1,5 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
-import org.kde.plasma.components 3.0 as PlasmaComponents3
 import "../components"
 import ".."
 
@@ -20,46 +19,54 @@ ColumnLayout {
         return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
 
+    function loadOneMinute() {
+        return metrics && metrics.load_average ? Number(metrics.load_average[0]).toFixed(2) : "0.00";
+    }
+
     Layout.fillWidth: true
     spacing: theme.spacingM
 
     MetricCard {
         Layout.fillWidth: true
+        hero: true
         title: "CPU"
         subtitle: metrics && metrics.cpu ? metrics.cpu.name : "Sem dados"
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: theme.spacingS
+            spacing: theme.spacingM
 
-            StatusChip {
-                text: metrics && metrics.cpu && metrics.cpu.usage_percent >= 80 ? "Alto" : (metrics && metrics.cpu && metrics.cpu.usage_percent >= 50 ? "Médio" : "OK")
-                chipColor: metrics && metrics.cpu && metrics.cpu.usage_percent >= 80 ? theme.dangerColor : (metrics && metrics.cpu && metrics.cpu.usage_percent >= 50 ? theme.warningColor : theme.successColor)
+            HeroMetric {
+                Layout.preferredWidth: 110
+                label: "Frequência"
+                value: metrics && metrics.cpu ? String(metrics.cpu.frequency) : "0"
+                unit: "MHz"
+                accentColor: theme.cpuColor
+                footnote: metrics && metrics.cpu ? metrics.cpu.core_count + " núcleos" : "-"
             }
 
-            MetricRow {
-                Layout.fillWidth: true
-                label: "Freq"
-                value: metrics && metrics.cpu ? metrics.cpu.frequency + " MHz" : "-"
+            RingGauge {
+                Layout.alignment: Qt.AlignHCenter
+                value: metrics && metrics.cpu ? metrics.cpu.usage_percent : 0
+                centerText: root.fmtPercent(metrics && metrics.cpu ? metrics.cpu.usage_percent : 0)
+                label: "Uso total"
+                accentColor: theme.cpuColor
+                footnote: root.historyWindowLabel()
             }
 
-            MetricRow {
-                Layout.fillWidth: true
-                label: "Núcleos"
-                value: metrics && metrics.cpu ? metrics.cpu.core_count : "-"
+            HeroMetric {
+                Layout.preferredWidth: 110
+                label: "Carga 1m"
+                value: root.loadOneMinute()
+                accentColor: theme.warningColor
+                footnote: "load average"
             }
-        }
-
-        MetricBar {
-            label: "Uso total"
-            value: metrics && metrics.cpu ? metrics.cpu.usage_percent : 0
-            barColor: theme.cpuColor
         }
     }
 
     MetricCard {
         Layout.fillWidth: true
-        title: "Histórico"
+        title: "Usage history"
         subtitle: root.historyWindowLabel()
 
         HistoryChart {
@@ -75,13 +82,13 @@ ColumnLayout {
 
     MetricCard {
         Layout.fillWidth: true
-        title: "Uso por núcleo"
-        subtitle: "Resumo dos núcleos lógicos"
+        title: "Details"
+        subtitle: "Uso por núcleo"
 
         GridLayout {
             Layout.fillWidth: true
             columns: 2
-            columnSpacing: theme.spacingS
+            columnSpacing: theme.spacingM
             rowSpacing: theme.spacingXS
 
             Repeater {
@@ -89,6 +96,8 @@ ColumnLayout {
 
                 delegate: MetricRow {
                     Layout.fillWidth: true
+                    dense: true
+                    accentColor: theme.cpuColor
                     label: "Core " + String(index + 1).padStart(2, "0")
                     value: root.fmtPercent(modelData)
                 }

@@ -5,12 +5,12 @@
 ## Projeto
 
 - **Nome:** monitor-tray
-- **Descrição:** Aplicativo de monitoramento de sistema para Linux que exibe métricas em tempo real na system tray, com foco em performance, baixo consumo de recursos e menu detalhado com CPU, memória, disco, rede e uptime.
+- **Descrição:** Aplicativo de monitoramento de sistema para Linux que exibe métricas em tempo real na system tray. Inclui UI legada com GTK/AppIndicator e backend DBus para um Plasmoid KDE.
 
 ## Stack
 
-- **Linguagem(s):** Rust (Cargo.toml com edition 2021; README indica Rust 1.70+)
-- **Frameworks:** GTK, libappindicator, Tokio
+- **Linguagem(s):** Rust (edition 2021; README indica Rust 1.70+)
+- **Frameworks:** GTK, libappindicator, Tokio, zbus
 
 ## Gerenciamento de Dependências
 
@@ -20,30 +20,32 @@
 
 ## Comandos Essenciais
 
+- **Testes:** `make test`
 - **Dev server:** `make dev`
 - **Build:** `cargo build --release`
-- **Testes:** `make test` ou `cargo test`
 
 ## Estrutura de Diretórios
 
 - **Código principal:** `src/`
-- **Testes:** `src/` com módulos `#[cfg(test)]`; `tests/` reservado para integração futura
+- **Testes:** `tests/` (não encontrado); testes unitários embutidos em `src/`
 
 ## Módulos
 
-- **`src/main.rs`** — Inicializa a aplicação GTK/libappindicator, cria o menu da tray, gera ícones SVG dinâmicos e coordena a atualização periódica da interface.
-- **`src/monitor.rs`** — Encapsula a coleta de métricas do sistema via `sysinfo` e define os modelos serializáveis de CPU, memória, disco, rede e sistema.
+- **`src/lib.rs`** — Expõe a API compartilhada para coleta única de métricas, serialização em JSON e constantes do serviço DBus.
+- **`src/main.rs`** — Inicializa a aplicação GTK/AppIndicator, interpreta flags CLI (`--json`, `--dbus`), cria o menu da tray e atualiza a interface periodicamente.
+- **`src/monitor.rs`** — Define os modelos serializáveis de CPU, memória, disco, rede e sensores e coleta snapshots do sistema via `sysinfo` e `/sys/class/hwmon`.
+- **`src/dbus.rs`** — Implementa o backend DBus com `zbus`, mantendo um `SystemMonitor` compartilhado e expondo métricas em JSON para o frontend KDE.
 
 ## Arquitetura
 
 - **Estilo:** Flat modular
-- **Descrição:** `main.rs` concentra a camada de apresentação e orquestração da aplicação desktop de tray. `monitor.rs` funciona como camada de coleta e modelagem de dados, retornando `SystemMetrics` consumido pela interface.
+- **Descrição:** `monitor.rs` concentra a coleta e modelagem de métricas. `lib.rs` fornece funções reutilizáveis para coleta/serialização, enquanto `main.rs` usa essas rotinas para a UI de tray e `dbus.rs` publica o mesmo backend em DBus para consumo do Plasmoid KDE.
 
 ## Testes
 
 - **Framework:** `cargo test` (testes unitários Rust)
-- **Diretório:** `src/` com módulos `#[cfg(test)]` embutidos; `tests/` reservado para integração futura
-- **Executar todos:** `make test` ou `cargo test`
+- **Diretório:** `src/` com módulos `#[cfg(test)]`; `tests/` ⚠️ não encontrado
+- **Executar todos:** `make test`
 - **Com cobertura:** `(preencher manualmente)`
 
 ## Convenções de Código
@@ -53,7 +55,7 @@
 - **Aninhamento máximo:** 3 níveis
 - **Docstrings / comentários:** Português brasileiro
 - **Identificadores (variáveis, funções, classes):** Inglês
-- Rust: módulos separados por arquivo, `struct`s tipadas para dados de domínio e `Result` para erros recuperáveis
+- Rust: módulos separados por arquivo, `struct`s serializáveis para snapshots de métricas e `Result` para erros recuperáveis
 
 ## Commits
 
@@ -75,5 +77,5 @@ Ou siga diretamente as regras em `.agents/skills/git-commit-push/SKILL.md`.
 | `plan`    | Cria planos detalhados em `.pi/plans/`         | escrita em .pi/plans/  |
 | `quality` | Auditoria de qualidade de código               | bash + leitura         |
 | `qa`      | Análise de bugs e edge cases                   | bash + leitura         |
-| `test`    | Cria e mantém testes automatizados             | escrita em `src/` e `tests/` |
+| `test`    | Cria e mantém testes automatizados             | escrita em tests/      |
 | `doc`     | Cria documentação técnica em `docs/`           | escrita em docs/       |

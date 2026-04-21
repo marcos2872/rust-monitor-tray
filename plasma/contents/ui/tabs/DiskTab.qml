@@ -1,6 +1,5 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
-import org.kde.plasma.components 3.0 as PlasmaComponents3
 import "../components"
 import ".."
 
@@ -14,15 +13,25 @@ ColumnLayout {
         return Number(value).toFixed(1);
     }
 
-    function usage() {
-        if (!metrics || !metrics.disk || !metrics.disk.total_space) return 0;
-        return (metrics.disk.used_space / metrics.disk.total_space) * 100.0;
+    function primaryDisk() {
+        var rows = metrics && metrics.disk && metrics.disk.disks ? metrics.disk.disks.slice(0) : [];
+        if (rows.length === 0) return null;
+        rows.sort(function(a, b) {
+            if (a.mount_point === "/") return -1;
+            if (b.mount_point === "/") return 1;
+            return (b.usage_percent || 0) - (a.usage_percent || 0);
+        });
+        return rows[0];
     }
 
-    function topDisks() {
+    function secondaryDisks() {
+        var primary = primaryDisk();
         var rows = metrics && metrics.disk && metrics.disk.disks ? metrics.disk.disks.slice(0) : [];
+        rows = rows.filter(function(item) {
+            return !primary || item.mount_point !== primary.mount_point;
+        });
         rows.sort(function(a, b) { return (b.usage_percent || 0) - (a.usage_percent || 0); });
-        return rows.slice(0, 5);
+        return rows.slice(0, 4);
     }
 
     Layout.fillWidth: true
@@ -30,43 +39,60 @@ ColumnLayout {
 
     MetricCard {
         Layout.fillWidth: true
-        title: "Disco"
-        subtitle: metrics && metrics.disk ? (root.fmtOne(metrics.disk.used_space) + " / " + root.fmtOne(metrics.disk.total_space) + " GB") : "Sem dados"
+        hero: true
+        title: "Disk"
+        subtitle: primaryDisk() ? primaryDisk().name + " · " + primaryDisk().mount_point : "Sem dados"
 
-        RowLayout {
+        HeroMetric {
             Layout.fillWidth: true
-            spacing: theme.spacingS
-
-            StatusChip {
-                text: root.usage() >= 80 ? "Alto" : (root.usage() >= 50 ? "Médio" : "OK")
-                chipColor: root.usage() >= 80 ? theme.dangerColor : (root.usage() >= 50 ? theme.warningColor : theme.successColor)
-            }
-
-            MetricRow {
-                Layout.fillWidth: true
-                label: "Livre"
-                value: metrics && metrics.disk ? root.fmtOne(metrics.disk.available_space) + " GB" : "-"
-            }
+            label: "Uso principal"
+            value: primaryDisk() ? String(Math.round(primaryDisk().usage_percent)) : "0"
+            unit: "%"
+            accentColor: theme.diskColor
+            footnote: primaryDisk() ? (root.fmtOne(primaryDisk().used_space) + " de " + root.fmtOne(primaryDisk().total_space) + " GB") : "-"
         }
 
         MetricBar {
-            label: "Uso agregado"
-            value: root.usage()
+            visible: primaryDisk() !== null
+            label: primaryDisk() ? primaryDisk().mount_point : "-"
+            value: primaryDisk() ? primaryDisk().usage_percent : 0
             barColor: theme.diskColor
         }
 
-        SectionHeader {
-            title: "Partições principais"
-            subtitle: "Ordenadas por uso"
+        MetricRow {
+            Layout.fillWidth: true
+            accentColor: theme.successColor
+            label: "Livre"
+            value: primaryDisk() ? root.fmtOne(primaryDisk().available_space) + " GB" : "-"
         }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Partições"
+        subtitle: "Secundárias por uso"
 
         Repeater {
-            model: root.topDisks()
+            model: root.secondaryDisks()
 
-            delegate: MetricRow {
+            delegate: ColumnLayout {
                 Layout.fillWidth: true
-                label: modelData.mount_point
-                value: Math.round(modelData.usage_percent) + "%"
+                spacing: theme.spacingXS
+
+                MetricRow {
+                    Layout.fillWidth: true
+                    accentColor: theme.diskColor
+                    label: modelData.mount_point
+                    value: Math.round(modelData.usage_percent) + "%"
+                }
+
+                MetricBar {
+                    Layout.fillWidth: true
+                    label: modelData.name
+                    value: modelData.usage_percent
+                    barColor: theme.diskColor
+                    barHeight: 8
+                }
             }
         }
     }

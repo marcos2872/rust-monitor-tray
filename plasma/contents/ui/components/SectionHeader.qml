@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import org.kde.plasma.components 3.0 as PlasmaComponents3
+import ".."
 
 ColumnLayout {
     id: root
@@ -9,12 +10,13 @@ ColumnLayout {
     property string subtitle: ""
 
     Layout.fillWidth: true
-    spacing: 2
+    spacing: 3
 
     PlasmaComponents3.Label {
         text: root.title
+        visible: text.length > 0
         font.bold: true
-        font.pointSize: 10
+        font.pixelSize: theme.sectionTitleSize
         Layout.fillWidth: true
         elide: Text.ElideRight
     }
@@ -22,9 +24,12 @@ ColumnLayout {
     PlasmaComponents3.Label {
         visible: text.length > 0
         text: root.subtitle
-        opacity: 0.7
+        color: theme.subduedTextColor
+        font.pixelSize: theme.subtitleSize
         Layout.fillWidth: true
         elide: Text.ElideRight
         wrapMode: Text.WordWrap
     }
+
+    Theme { id: theme }
 }

@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import org.kde.plasma.components 3.0 as PlasmaComponents3
+import ".."
 
 Item {
     id: root
@@ -13,15 +14,15 @@ Item {
     property string maxLabel: ""
     property string minLabel: "0"
     property string leftFooterText: "5 min atrás"
+    property string rightFooterText: "Agora"
 
-    implicitHeight: 132
+    implicitHeight: theme.chartHeight + 30
     Layout.fillWidth: true
 
     function computedMaximum() {
         if (root.maximumValue > root.minimumValue) {
             return root.maximumValue;
         }
-
         var maxValue = root.minimumValue;
         for (var index = 0; index < root.values.length; index += 1) {
             var value = Number(root.values[index]);
@@ -34,16 +35,19 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 4
+        spacing: theme.spacingXS
 
         RowLayout {
             Layout.fillWidth: true
-
-            Item { Layout.fillWidth: true }
-
             PlasmaComponents3.Label {
                 text: root.maxLabel.length > 0 ? root.maxLabel : Math.round(root.computedMaximum()).toString()
-                opacity: 0.7
+                color: theme.subduedTextColor
+                font.pixelSize: 11
+            }
+            Item { Layout.fillWidth: true }
+            PlasmaComponents3.Label {
+                text: root.rightFooterText
+                color: theme.mutedTextColor
                 font.pixelSize: 11
             }
         }
@@ -51,10 +55,10 @@ Item {
         Rectangle {
             id: chartArea
             Layout.fillWidth: true
-            Layout.preferredHeight: 96
-            radius: 6
-            color: Qt.rgba(1, 1, 1, 0.04)
-            border.color: Qt.rgba(1, 1, 1, 0.08)
+            Layout.preferredHeight: theme.chartHeight
+            radius: theme.cardRadius
+            color: theme.elevatedSurfaceColor
+            border.color: theme.outlineColor
 
             Canvas {
                 id: canvas
@@ -86,7 +90,7 @@ Item {
                     var maxValue = root.computedMaximum();
 
                     ctx.lineWidth = 1;
-                    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+                    ctx.strokeStyle = "rgba(255,255,255,0.08)";
                     for (var line = 1; line <= 3; line += 1) {
                         var y = (height / 4) * line;
                         ctx.beginPath();
@@ -134,18 +138,15 @@ Item {
 
         RowLayout {
             Layout.fillWidth: true
-
             PlasmaComponents3.Label {
                 text: root.leftFooterText
-                opacity: 0.65
+                color: theme.mutedTextColor
                 font.pixelSize: 11
             }
-
             Item { Layout.fillWidth: true }
-
             PlasmaComponents3.Label {
                 text: root.minLabel
-                opacity: 0.65
+                color: theme.subduedTextColor
                 font.pixelSize: 11
             }
         }
@@ -157,4 +158,6 @@ Item {
     onMaximumValueChanged: canvas.requestPaint()
     onMinimumValueChanged: canvas.requestPaint()
     Component.onCompleted: canvas.requestPaint()
+
+    Theme { id: theme }
 }

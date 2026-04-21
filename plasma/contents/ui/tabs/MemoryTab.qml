@@ -1,6 +1,5 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
-import org.kde.plasma.components 3.0 as PlasmaComponents3
 import "../components"
 import ".."
 
@@ -20,66 +19,56 @@ ColumnLayout {
         return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
 
+    function swapPercent() {
+        if (!metrics || !metrics.memory || !metrics.memory.total_swap) return 0;
+        return (metrics.memory.used_swap / metrics.memory.total_swap) * 100.0;
+    }
+
     Layout.fillWidth: true
     spacing: theme.spacingM
 
     MetricCard {
         Layout.fillWidth: true
-        title: "Memória"
+        hero: true
+        title: "RAM"
         subtitle: metrics && metrics.memory ? (root.fmtOne(metrics.memory.used_memory) + " / " + root.fmtOne(metrics.memory.total_memory) + " GB") : "Sem dados"
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: theme.spacingS
+            spacing: theme.spacingM
 
-            StatusChip {
-                text: metrics && metrics.memory && metrics.memory.usage_percent >= 80 ? "Alto" : (metrics && metrics.memory && metrics.memory.usage_percent >= 50 ? "Médio" : "OK")
-                chipColor: metrics && metrics.memory && metrics.memory.usage_percent >= 80 ? theme.dangerColor : (metrics && metrics.memory && metrics.memory.usage_percent >= 50 ? theme.warningColor : theme.successColor)
-            }
-
-            MetricRow {
-                Layout.fillWidth: true
+            HeroMetric {
+                Layout.preferredWidth: 110
                 label: "Livre"
-                value: metrics && metrics.memory ? root.fmtOne(metrics.memory.available_memory) + " GB" : "-"
-            }
-        }
-
-        MetricBar {
-            label: "RAM"
-            value: metrics && metrics.memory ? metrics.memory.usage_percent : 0
-            barColor: theme.memoryColor
-        }
-
-        GridLayout {
-            Layout.fillWidth: true
-            columns: 2
-            columnSpacing: theme.spacingS
-            rowSpacing: theme.spacingXS
-
-            MetricRow {
-                Layout.fillWidth: true
-                label: "Usada"
-                value: metrics && metrics.memory ? root.fmtOne(metrics.memory.used_memory) + " GB" : "-"
+                value: metrics && metrics.memory ? root.fmtOne(metrics.memory.available_memory) : "0.0"
+                unit: "GB"
+                accentColor: theme.successColor
+                footnote: "disponível"
             }
 
-            MetricRow {
-                Layout.fillWidth: true
-                label: "Total"
-                value: metrics && metrics.memory ? root.fmtOne(metrics.memory.total_memory) + " GB" : "-"
+            RingGauge {
+                Layout.alignment: Qt.AlignHCenter
+                value: metrics && metrics.memory ? metrics.memory.usage_percent : 0
+                centerText: Math.round(metrics && metrics.memory ? metrics.memory.usage_percent : 0) + "%"
+                label: "Memória"
+                accentColor: theme.memoryColor
+                footnote: root.historyWindowLabel()
             }
-        }
 
-        MetricBar {
-            visible: metrics && metrics.memory && metrics.memory.total_swap > 0
-            label: "Swap"
-            value: metrics && metrics.memory && metrics.memory.total_swap > 0 ? (metrics.memory.used_swap / metrics.memory.total_swap) * 100.0 : 0
-            barColor: "#a78bfa"
+            HeroMetric {
+                Layout.preferredWidth: 110
+                label: "Swap"
+                value: metrics && metrics.memory ? root.fmtOne(metrics.memory.used_swap) : "0.0"
+                unit: "GB"
+                accentColor: "#a78bfa"
+                footnote: metrics && metrics.memory && metrics.memory.total_swap > 0 ? Math.round(root.swapPercent()) + "% usado" : "sem swap"
+            }
         }
     }
 
     MetricCard {
         Layout.fillWidth: true
-        title: "Histórico"
+        title: "Usage history"
         subtitle: root.historyWindowLabel()
 
         HistoryChart {
@@ -90,6 +79,33 @@ ColumnLayout {
             maximumValue: 100
             maxLabel: "100%"
             minLabel: "0%"
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Details"
+        subtitle: "Resumo da memória"
+
+        MetricRow {
+            Layout.fillWidth: true
+            accentColor: theme.memoryColor
+            label: "Usada"
+            value: metrics && metrics.memory ? root.fmtOne(metrics.memory.used_memory) + " GB" : "-"
+        }
+
+        MetricRow {
+            Layout.fillWidth: true
+            accentColor: theme.successColor
+            label: "Livre"
+            value: metrics && metrics.memory ? root.fmtOne(metrics.memory.available_memory) + " GB" : "-"
+        }
+
+        MetricRow {
+            Layout.fillWidth: true
+            accentColor: "#a78bfa"
+            label: "Swap"
+            value: metrics && metrics.memory ? root.fmtOne(metrics.memory.used_swap) + " / " + root.fmtOne(metrics.memory.total_swap) + " GB" : "-"
         }
     }
 

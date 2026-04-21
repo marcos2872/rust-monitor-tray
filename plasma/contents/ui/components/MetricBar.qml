@@ -9,7 +9,8 @@ Item {
     property string label: ""
     property real value: 0
     property color barColor: "#60a5fa"
-    property int barHeight: 10
+    property int barHeight: 12
+    property string suffix: "%"
 
     implicitHeight: layout.implicitHeight
     Layout.fillWidth: true
@@ -27,11 +28,11 @@ Item {
                 text: root.label
                 Layout.fillWidth: true
                 elide: Text.ElideRight
-                opacity: 0.9
+                color: theme.subduedTextColor
             }
 
             PlasmaComponents3.Label {
-                text: Math.round(root.value) + "%"
+                text: Math.round(root.value) + root.suffix
                 horizontalAlignment: Text.AlignRight
                 font.bold: true
             }
@@ -43,6 +44,7 @@ Item {
             Layout.preferredHeight: root.barHeight
             radius: root.barHeight / 2
             color: theme.trackColor
+            opacity: 0.55
 
             Rectangle {
                 width: Math.max(0, Math.min(track.width, track.width * (root.value / 100.0)))
@@ -53,7 +55,5 @@ Item {
         }
     }
 
-    Theme {
-        id: theme
-    }
+    Theme { id: theme }
 }
