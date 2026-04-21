@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use super::{CurrentSensor, FanSensor, PowerSensor, VoltageSensor};
+use super::{CurrentSensor, FanSensor, PowerSensor, TemperatureSensor, VoltageSensor};
 
 pub(crate) const HWMON_BASE_PATH: &str = "/sys/class/hwmon";
 const MILLI_SCALE: f32 = 1000.0;
@@ -10,6 +10,7 @@ const PWM_MAX_VALUE: f32 = 255.0;
 
 #[derive(Default)]
 pub(crate) struct HwmonMetrics {
+    pub(crate) temperatures: Vec<TemperatureSensor>,
     pub(crate) fans: Vec<FanSensor>,
     pub(crate) voltages: Vec<VoltageSensor>,
     pub(crate) currents: Vec<CurrentSensor>,
@@ -110,6 +111,31 @@ pub(crate) fn collect_hwmon_metrics_from_path(base_path: &Path) -> HwmonMetrics 
                 continue;
             };
 
+            if let Some(index) = parse_sensor_index(&file_name, "temp", "_input") {
+                if let Some(celsius) = read_scaled_f32(&file_path, MILLI_SCALE) {
+                    if celsius.is_finite() {
+                        let chip  = hwmon_chip_name(&path);
+                        let label = read_trimmed(&path.join(format!("temp{index}_label")))
+                            .map(|l| prettify_identifier(&l))
+                            .unwrap_or_else(|| format!("Temp {index}"));
+                        let max_celsius = read_scaled_f32(
+                            &path.join(format!("temp{index}_max")), MILLI_SCALE,
+                        );
+                        let critical_celsius = read_scaled_f32(
+                            &path.join(format!("temp{index}_crit")), MILLI_SCALE,
+                        );
+                        metrics.temperatures.push(TemperatureSensor {
+                            label,
+                            chip,
+                            temperature_celsius: celsius,
+                            max_celsius,
+                            critical_celsius,
+                        });
+                    }
+                }
+                continue;
+            }
+
             if let Some(index) = parse_sensor_index(&file_name, "fan", "_input") {
                 if let Some(rpm) = read_u64(&file_path) {
                     let duty_percent = read_scaled_f32(&path.join(format!("pwm{index}")), 1.0)
@@ -155,6 +181,10 @@ pub(crate) fn collect_hwmon_metrics_from_path(base_path: &Path) -> HwmonMetrics 
         }
     }
 
+    metrics.temperatures.sort_by(|a, b| {
+        a.chip.cmp(&b.chip)
+            .then_with(|| a.label.cmp(&b.label))
+    });
     metrics.fans.sort_by(|left, right| left.label.cmp(&right.label));
     metrics
         .voltages

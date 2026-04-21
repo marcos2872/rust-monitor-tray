@@ -66,6 +66,7 @@ pub struct NetworkInterface {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemperatureSensor {
     pub label: String,
+    pub chip: String,
     pub temperature_celsius: f32,
     pub max_celsius: Option<f32>,
     pub critical_celsius: Option<f32>,

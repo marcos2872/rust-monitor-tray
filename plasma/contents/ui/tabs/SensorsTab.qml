@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
+import org.kde.plasma.components 3.0 as PlasmaComponents3
 import "../components"
 import ".."
 
@@ -12,6 +13,47 @@ ColumnLayout {
         var rows = metrics && metrics.sensors && metrics.sensors.temperatures ? metrics.sensors.temperatures.slice(0) : [];
         rows.sort(function(a, b) { return (b.temperature_celsius || 0) - (a.temperature_celsius || 0); });
         return rows;
+    }
+
+    /// Mapeia o nome técnico do chip para uma categoria legível.
+    function chipCategory(chip) {
+        var name = (chip || "").toLowerCase();
+        if (name === "coretemp" || name === "k10temp" || name === "zenpower" || name.indexOf("cpu") >= 0)
+            return "CPU";
+        if (name === "amdgpu" || name === "radeon" || name === "nouveau" || name.indexOf("nvidia") >= 0 || name.indexOf("gpu") >= 0)
+            return "GPU";
+        if (name === "nvme")
+            return "NVMe";
+        if (name === "acpitz" || name === "sistema")
+            return "Sistema (ACPI)";
+        return chip;
+    }
+
+    /// Agrupa os sensores de temperatura por chip/categoria, ordenando por temperatura dentro de cada grupo.
+    function temperatureGroups() {
+        var sensors = metrics && metrics.sensors && metrics.sensors.temperatures
+            ? metrics.sensors.temperatures.slice(0) : [];
+        var groupMap = {};
+        var groupOrder = [];
+        for (var i = 0; i < sensors.length; i++) {
+            var cat = chipCategory(sensors[i].chip || "Outros");
+            if (!groupMap[cat]) {
+                groupMap[cat] = [];
+                groupOrder.push(cat);
+            }
+            groupMap[cat].push(sensors[i]);
+        }
+        // ordena sensores dentro de cada grupo por nome (estável)
+        for (var j = 0; j < groupOrder.length; j++) {
+            groupMap[groupOrder[j]].sort(function(a, b) {
+                return (a.label || "").localeCompare(b.label || "");
+            });
+        }
+        var result = [];
+        for (var k = 0; k < groupOrder.length; k++) {
+            result.push({ category: groupOrder[k], sensors: groupMap[groupOrder[k]] });
+        }
+        return result;
     }
 
     function fansSorted() {
@@ -119,16 +161,52 @@ ColumnLayout {
     MetricCard {
         Layout.fillWidth: true
         title: "Temperature"
-        subtitle: root.temperaturesSorted().length > 0 ? root.temperaturesSorted().length + " sensores térmicos" : "Sem leituras de temperatura"
+        subtitle: {
+            var total = metrics && metrics.sensors ? metrics.sensors.temperatures.length : 0;
+            var groups = root.temperatureGroups().length;
+            return total > 0 ? total + " sensores · " + groups + " categorias" : "Sem leituras de temperatura";
+        }
 
-        SensorValueList {
+        Repeater {
+            model: root.temperatureGroups()
+
+            delegate: ColumnLayout {
+                Layout.fillWidth: true
+                spacing: theme.spacingXS
+
+                // Cabeçalho da categoria
+                SectionHeader {
+                    Layout.fillWidth: true
+                    title: modelData.category
+                    subtitle: modelData.sensors.length + " sensor" + (modelData.sensors.length !== 1 ? "es" : "")
+                }
+
+                // Sensores da categoria
+                Repeater {
+                    model: modelData.sensors
+
+                    delegate: MetricRow {
+                        Layout.fillWidth: true
+                        dense: true
+                        accentColor: {
+                            var t = modelData.temperature_celsius || 0;
+                            if (t >= 85) return theme.dangerColor;
+                            if (t >= 70) return theme.warningColor;
+                            return theme.successColor;
+                        }
+                        label: modelData.label
+                        value: root.fmtTemp(modelData.temperature_celsius)
+                    }
+                }
+            }
+        }
+
+        PlasmaComponents3.Label {
+            visible: root.temperatureGroups().length === 0
+            text: "O backend não encontrou sensores de temperatura nesta máquina."
+            color: theme.mutedTextColor
             Layout.fillWidth: true
-            items: root.temperaturesSorted()
-            valueProp: "temperature_celsius"
-            suffix: "°C"
-            decimals: 1
-            accentColor: theme.warningColor
-            emptyText: "O backend atual não encontrou sensores de temperatura expostos nesta máquina."
+            wrapMode: Text.WordWrap
         }
     }
 
@@ -138,6 +216,7 @@ ColumnLayout {
 
         MetricCard {
             Layout.fillWidth: true
+            Layout.fillHeight: true
             title: "Voltage"
             subtitle: root.voltagesSorted().length > 0 ? root.voltagesSorted().length + " leituras" : "Sem tensão"
 
@@ -154,6 +233,7 @@ ColumnLayout {
 
         MetricCard {
             Layout.fillWidth: true
+            Layout.fillHeight: true
             title: "Current"
             subtitle: root.currentsSorted().length > 0 ? root.currentsSorted().length + " leituras" : "Sem corrente"
 

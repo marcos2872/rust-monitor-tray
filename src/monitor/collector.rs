@@ -361,27 +361,32 @@ impl SystemMonitor {
     }
 
     pub fn get_sensor_metrics(&self) -> SensorMetrics {
-        let temperatures: Vec<TemperatureSensor> = self
-            .components
-            .iter()
-            .filter_map(|component| {
-                let temperature = component.temperature()?;
-                if !temperature.is_finite() {
-                    return None;
-                }
-                let label = component.label().trim();
-                Some(TemperatureSensor {
-                    label: if label.is_empty() {
-                        "Sensor".to_string()
-                    } else {
-                        label.to_string()
-                    },
-                    temperature_celsius: temperature,
-                    max_celsius:      component.max().filter(|v| v.is_finite()),
-                    critical_celsius: component.critical().filter(|v| v.is_finite()),
+        let hwmon_metrics = collect_hwmon_metrics_from_path(Path::new(HWMON_BASE_PATH));
+
+        // Usa temperaturas do hwmon (coretemp, amdgpu, nvme, etc.) como fonte primária.
+        // Fallback para sysinfo::Components quando hwmon não encontrar nada
+        // (ex.: VMs, containers, sistemas sem módulos hwmon carregados).
+        let temperatures: Vec<TemperatureSensor> = if !hwmon_metrics.temperatures.is_empty() {
+            hwmon_metrics.temperatures.clone()
+        } else {
+            self.components
+                .iter()
+                .filter_map(|component| {
+                    let temperature = component.temperature()?;
+                    if !temperature.is_finite() {
+                        return None;
+                    }
+                    let label = component.label().trim();
+                    Some(TemperatureSensor {
+                        label: if label.is_empty() { "Sensor".to_string() } else { label.to_string() },
+                        chip: "Sistema".to_string(),
+                        temperature_celsius: temperature,
+                        max_celsius:      component.max().filter(|v| v.is_finite()),
+                        critical_celsius: component.critical().filter(|v| v.is_finite()),
+                    })
                 })
-            })
-            .collect();
+                .collect()
+        };
 
         let average_temperature_celsius = if temperatures.is_empty() {
             None
@@ -399,8 +404,6 @@ impl SystemMonitor {
         });
         let hottest_temperature_celsius = hottest_sensor.map(|s| s.temperature_celsius);
         let hottest_label = hottest_sensor.map(|s| s.label.clone()).unwrap_or_default();
-
-        let hwmon_metrics = collect_hwmon_metrics_from_path(Path::new(HWMON_BASE_PATH));
 
         SensorMetrics {
             temperatures,
