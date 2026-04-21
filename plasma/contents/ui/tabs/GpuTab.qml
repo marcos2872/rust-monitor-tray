@@ -82,7 +82,10 @@ ColumnLayout {
                 unit: root.primaryGpu && root.primaryGpu.temperature_celsius !== null ? "°C" : ""
                 accentColor: root.temperatureAccentColor(root.primaryGpu ? root.primaryGpu.temperature_celsius : 0)
                 footnote: root.primaryGpu && root.primaryGpu.fan_rpm !== null
-                    ? root.primaryGpu.fan_rpm + " RPM" : "sem sensor"
+                    ? root.primaryGpu.fan_rpm + " RPM"
+                      + (root.primaryGpu.fan_duty_percent !== null && root.primaryGpu.fan_duty_percent !== undefined
+                          ? " · " + Math.round(root.primaryGpu.fan_duty_percent) + "%" : "")
+                    : "sem sensor"
             }
 
             RingGauge {
@@ -184,7 +187,11 @@ ColumnLayout {
             Layout.fillWidth: true
             accentColor: theme.systemColor
             label: "Fan"
-            value: root.primaryGpu ? (root.primaryGpu.fan_rpm || 0) + " RPM" : "-"
+            value: root.primaryGpu
+                ? (root.primaryGpu.fan_rpm || 0) + " RPM"
+                  + (root.primaryGpu.fan_duty_percent !== null && root.primaryGpu.fan_duty_percent !== undefined
+                      ? " (· " + Math.round(root.primaryGpu.fan_duty_percent) + "%)" : "")
+                : "-"
         }
 
         MetricRow {

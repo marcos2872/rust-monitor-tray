@@ -51,6 +51,8 @@ pub struct NetworkMetrics {
     pub interfaces: HashMap<String, NetworkInterface>,
     pub total_bytes_received: u64,
     pub total_bytes_transmitted: u64,
+    pub gateway_ip: Option<String>,
+    pub gateway_latency_ms: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,10 +106,22 @@ pub struct SensorMetrics {
     pub average_temperature_celsius: Option<f32>,
     pub hottest_temperature_celsius: Option<f32>,
     pub hottest_label: String,
+    pub hottest_cpu_celsius: Option<f32>,
+    pub hottest_cpu_label: String,
+    pub hottest_gpu_celsius: Option<f32>,
+    pub hottest_gpu_label: String,
     pub fans: Vec<FanSensor>,
     pub voltages: Vec<VoltageSensor>,
     pub currents: Vec<CurrentSensor>,
     pub powers: Vec<PowerSensor>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProcessInfo {
+    pub pid: u32,
+    pub name: String,
+    pub cpu_percent: f32,
+    pub memory_mb: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,6 +156,7 @@ pub struct GpuInfo {
     pub temperature_celsius: Option<f32>,
     pub power_watts: Option<f32>,
     pub fan_rpm: Option<u64>,
+    pub fan_duty_percent: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,6 +167,7 @@ pub struct SystemMetrics {
     pub network: NetworkMetrics,
     pub sensors: SensorMetrics,
     pub gpus: Vec<GpuInfo>,
+    pub top_processes: Vec<ProcessInfo>,
     pub system_info: SystemInfo,
     pub uptime: u64,
     pub load_average: (f64, f64, f64),

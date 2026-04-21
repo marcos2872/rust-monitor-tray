@@ -124,120 +124,83 @@ ColumnLayout {
     // ── Resumo de recursos ───────────────────────────────────────────────────
     MetricCard {
         Layout.fillWidth: true
-        title: "Recursos"
-        subtitle: "Visão geral do hardware"
+        title: "Processos"
+        subtitle: metrics && metrics.top_processes
+            ? metrics.top_processes.length + " com maior uso de CPU"
+            : "Coletando..."
 
-        // CPU
-        SectionHeader { title: "CPU" }
-
-        MetricRow {
+        // Cabeçalho da tabela
+        RowLayout {
             Layout.fillWidth: true
-            accentColor: theme.cpuColor
-            label: metrics && metrics.cpu ? metrics.cpu.name : "-"
-            value: metrics && metrics.cpu
-                ? metrics.cpu.core_count + " núcleos · " + metrics.cpu.frequency + " MHz"
-                : "-"
-        }
+            spacing: theme.spacingS
 
-        MetricBar {
-            Layout.fillWidth: true
-            label: "Uso"
-            value: metrics && metrics.cpu ? metrics.cpu.usage_percent : 0
-            barColor: theme.cpuColor
-        }
-
-        // RAM
-        SectionHeader { title: "Memória" }
-
-        MetricRow {
-            Layout.fillWidth: true
-            accentColor: theme.memoryColor
-            label: "RAM"
-            value: metrics && metrics.memory
-                ? theme.fmtOne(metrics.memory.used_memory) + " / " + theme.fmtOne(metrics.memory.total_memory) + " GB"
-                : "-"
-        }
-
-        MetricBar {
-            Layout.fillWidth: true
-            label: "Uso"
-            value: metrics && metrics.memory ? metrics.memory.usage_percent : 0
-            barColor: theme.memoryColor
-        }
-
-        MetricRow {
-            Layout.fillWidth: true
-            accentColor: theme.swapColor
-            label: "Swap"
-            value: metrics && metrics.memory
-                ? theme.fmtOne(metrics.memory.used_swap) + " / " + theme.fmtOne(metrics.memory.total_swap) + " GB"
-                : "-"
-        }
-
-        // Disco
-        SectionHeader { title: "Disco" }
-
-        MetricRow {
-            Layout.fillWidth: true
-            accentColor: theme.diskColor
-            label: "Armazenamento"
-            value: metrics && metrics.disk
-                ? theme.fmtOne(metrics.disk.used_space) + " / " + theme.fmtOne(metrics.disk.total_space) + " GB"
-                : "-"
-        }
-
-        MetricBar {
-            Layout.fillWidth: true
-            label: "Uso"
-            value: metrics && metrics.disk
-                ? (metrics.disk.total_space > 0
-                    ? (metrics.disk.used_space / metrics.disk.total_space * 100)
-                    : 0)
-                : 0
-            barColor: theme.diskColor
-        }
-
-        // Rede
-        SectionHeader { title: "Rede" }
-
-        MetricRow {
-            Layout.fillWidth: true
-            accentColor: theme.cpuColor
-            label: "↓ Recebido total"
-            value: metrics && metrics.network
-                ? theme.fmtBytes(metrics.network.total_bytes_received)
-                : "-"
-        }
-
-        MetricRow {
-            Layout.fillWidth: true
-            accentColor: theme.dangerColor
-            label: "↑ Enviado total"
-            value: metrics && metrics.network
-                ? theme.fmtBytes(metrics.network.total_bytes_transmitted)
-                : "-"
-        }
-
-        // Temperatura
-        SectionHeader { title: "Temperatura" }
-
-        MetricRow {
-            Layout.fillWidth: true
-            accentColor: {
-                var tempCelsius = metrics && metrics.sensors
-                    ? (metrics.sensors.hottest_temperature_celsius || 0) : 0;
-                if (tempCelsius >= 85) return theme.dangerColor;
-                if (tempCelsius >= 70) return theme.warningColor;
-                return theme.successColor;
+            PlasmaComponents3.Label {
+                text: "Processo"
+                font.bold: true
+                font.pixelSize: 10
+                color: theme.mutedTextColor
+                Layout.fillWidth: true
             }
-            label: metrics && metrics.sensors && metrics.sensors.hottest_label
-                ? metrics.sensors.hottest_label
-                : "Sensor mais quente"
-            value: metrics && metrics.sensors
-                && metrics.sensors.hottest_temperature_celsius !== null
-                && metrics.sensors.hottest_temperature_celsius !== undefined
-                ? Number(metrics.sensors.hottest_temperature_celsius).toFixed(1) + "°C"
-                : "-"
+            PlasmaComponents3.Label {
+                text: "CPU"
+                font.bold: true
+                font.pixelSize: 10
+                color: theme.mutedTextColor
+                Layout.preferredWidth: 44
+                horizontalAlignment: Text.AlignRight
+            }
+            PlasmaComponents3.Label {
+                text: "RAM"
+                font.bold: true
+                font.pixelSize: 10
+                color: theme.mutedTextColor
+                Layout.preferredWidth: 64
+                horizontalAlignment: Text.AlignRight
+            }
+        }
+
+        Repeater {
+            model: metrics && metrics.top_processes ? metrics.top_processes : []
+
+            delegate: RowLayout {
+                Layout.fillWidth: true
+                spacing: theme.spacingS
+
+                Rectangle {
+                    width: 6; height: 6; radius: 3
+                    Layout.alignment: Qt.AlignVCenter
+                    color: modelData.cpu_percent > 50 ? theme.dangerColor
+                         : modelData.cpu_percent > 20 ? theme.warningColor
+                         : theme.cpuColor
+                }
+
+                PlasmaComponents3.Label {
+                    text: modelData.name
+                    font.pixelSize: 11
+                    color: theme.subduedTextColor
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+
+                PlasmaComponents3.Label {
+                    text: Number(modelData.cpu_percent).toFixed(1) + "%"
+                    font.pixelSize: 11
+                    font.bold: true
+                    color: modelData.cpu_percent > 50 ? theme.dangerColor
+                         : modelData.cpu_percent > 20 ? theme.warningColor
+                         : theme.subduedTextColor
+                    Layout.preferredWidth: 44
+                    horizontalAlignment: Text.AlignRight
+                }
+
+                PlasmaComponents3.Label {
+                    text: theme.fmtOne(modelData.memory_mb) + " MB"
+                    font.pixelSize: 11
+                    color: theme.mutedTextColor
+                    Layout.preferredWidth: 64
+                    horizontalAlignment: Text.AlignRight
+                }
+            }
         }
     }
 

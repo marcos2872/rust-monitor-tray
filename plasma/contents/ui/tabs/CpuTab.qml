@@ -19,41 +19,6 @@ ColumnLayout {
         return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
 
-    function hottestTemp() {
-        // Filtra apenas sensores de CPU (coretemp, k10temp, zenpower)
-        var sensors = metrics && metrics.sensors && metrics.sensors.temperatures
-            ? metrics.sensors.temperatures : [];
-        var cpuSensors = sensors.filter(function(s) {
-            var chipName = (s.chip || "").toLowerCase();
-            return chipName === "coretemp" || chipName === "k10temp" || chipName === "zenpower"
-                || chipName.indexOf("cpu") >= 0;
-        });
-        if (cpuSensors.length === 0) return null;
-        var max = cpuSensors[0].temperature_celsius;
-        for (var i = 1; i < cpuSensors.length; i++) {
-            if (cpuSensors[i].temperature_celsius > max)
-                max = cpuSensors[i].temperature_celsius;
-        }
-        return max;
-    }
-
-    function hottestCpuLabel() {
-        var sensors = metrics && metrics.sensors && metrics.sensors.temperatures
-            ? metrics.sensors.temperatures : [];
-        var cpuSensors = sensors.filter(function(s) {
-            var chipName = (s.chip || "").toLowerCase();
-            return chipName === "coretemp" || chipName === "k10temp" || chipName === "zenpower"
-                || chipName.indexOf("cpu") >= 0;
-        });
-        if (cpuSensors.length === 0) return "sem sensor de CPU";
-        var best = cpuSensors[0];
-        for (var i = 1; i < cpuSensors.length; i++) {
-            if (cpuSensors[i].temperature_celsius > best.temperature_celsius)
-                best = cpuSensors[i];
-        }
-        return best.label;
-    }
-
     Layout.fillWidth: true
     spacing: theme.spacingM
 
@@ -71,12 +36,14 @@ ColumnLayout {
             HeroMetric {
                 Layout.preferredWidth: 110
                 label: "Temperatura"
-                value: root.hottestTemp() !== null
-                    ? Number(root.hottestTemp()).toFixed(1)
-                    : "-"
-                unit: root.hottestTemp() !== null ? "°C" : ""
+                value: metrics && metrics.sensors && metrics.sensors.hottest_cpu_celsius !== null
+                       && metrics.sensors.hottest_cpu_celsius !== undefined
+                    ? Number(metrics.sensors.hottest_cpu_celsius).toFixed(1) : "-"
+                unit: metrics && metrics.sensors && metrics.sensors.hottest_cpu_celsius !== null
+                      && metrics.sensors.hottest_cpu_celsius !== undefined ? "°C" : ""
                 accentColor: theme.dangerColor
-                footnote: root.hottestCpuLabel()
+                footnote: metrics && metrics.sensors && metrics.sensors.hottest_cpu_label
+                    ? metrics.sensors.hottest_cpu_label : "sem sensor de CPU"
             }
 
             RingGauge {

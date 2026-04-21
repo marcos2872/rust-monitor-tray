@@ -120,15 +120,19 @@ fn collect_amd_gpu(card_path: &Path) -> GpuInfo {
     let shader_clock_mhz = read_active_clock_mhz(&dev.join("pp_dpm_sclk"));
     let memory_clock_mhz = read_active_clock_mhz(&dev.join("pp_dpm_mclk"));
 
-    let (temperature_celsius, power_watts, fan_rpm) =
+    let (temperature_celsius, power_watts, fan_rpm, fan_duty_percent) =
         if let Some(hwmon) = find_device_hwmon(&dev) {
+            let rpm = read_u64(&hwmon.join("fan1_input"));
+            let duty = rpm.and(read_u64(&hwmon.join("pwm1")))
+                .map(|v| (v as f32 / 255.0 * 100.0).clamp(0.0, 100.0));
             (
                 read_millidegrees(&hwmon.join("temp1_input")),
                 read_microwatts(&hwmon.join("power1_input")),
-                read_u64(&hwmon.join("fan1_input")),
+                rpm,
+                duty,
             )
         } else {
-            (None, None, None)
+            (None, None, None, None)
         };
 
     GpuInfo {
@@ -143,6 +147,7 @@ fn collect_amd_gpu(card_path: &Path) -> GpuInfo {
         temperature_celsius,
         power_watts,
         fan_rpm,
+        fan_duty_percent,
     }
 }
 
@@ -171,6 +176,7 @@ fn collect_intel_gpu(card_path: &Path) -> GpuInfo {
         temperature_celsius,
         power_watts:        None,
         fan_rpm:            None,
+        fan_duty_percent:   None,
     }
 }
 
@@ -214,6 +220,7 @@ fn parse_nvidia_csv_line(line: &str) -> Option<GpuInfo> {
         temperature_celsius,
         power_watts,
         fan_rpm: None,
+        fan_duty_percent: None,
     })
 }
 

@@ -116,6 +116,42 @@ ColumnLayout {
         title: "Details"
         subtitle: "Interfaces mais ativas"
 
+        // Gateway e latência
+        RowLayout {
+            visible: metrics && metrics.network && metrics.network.gateway_ip
+            Layout.fillWidth: true
+            spacing: theme.spacingM
+
+            MetricRow {
+                Layout.fillWidth: true
+                accentColor: theme.systemColor
+                label: "Gateway"
+                value: metrics && metrics.network ? (metrics.network.gateway_ip || "-") : "-"
+            }
+
+            MetricRow {
+                Layout.fillWidth: true
+                accentColor: metrics && metrics.network && metrics.network.gateway_latency_ms !== null
+                    && metrics.network.gateway_latency_ms !== undefined
+                    ? (metrics.network.gateway_latency_ms < 10 ? theme.successColor
+                       : metrics.network.gateway_latency_ms < 50 ? theme.warningColor
+                       : theme.dangerColor)
+                    : theme.systemColor
+                label: "Latência"
+                value: metrics && metrics.network && metrics.network.gateway_latency_ms !== null
+                       && metrics.network.gateway_latency_ms !== undefined
+                    ? Number(metrics.network.gateway_latency_ms).toFixed(2) + " ms" : "-"
+            }
+        }
+
+        Rectangle {
+            visible: metrics && metrics.network && metrics.network.gateway_ip
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+            color: theme.outlineColor
+            opacity: 0.5
+        }
+
         Repeater {
             id: ifaceRepeater
             model: root.asArray(metrics && metrics.network ? metrics.network.interfaces : null)

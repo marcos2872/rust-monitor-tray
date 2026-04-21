@@ -6,7 +6,7 @@ mod models;
 pub use collector::SystemMonitor;
 pub use models::{
     CpuMetrics, CurrentSensor, DiskInfo, DiskMetrics, FanSensor, GpuInfo, GpuVendor,
-    MemoryMetrics, NetworkInterface, NetworkMetrics, PowerSensor, SensorMetrics,
+    MemoryMetrics, NetworkInterface, NetworkMetrics, PowerSensor, ProcessInfo, SensorMetrics,
     SystemInfo, SystemMetrics, TemperatureSensor, VoltageSensor,
 };
 
@@ -103,6 +103,8 @@ mod tests {
             disk_read_rates: std::collections::HashMap::new(),
             disk_write_rates: std::collections::HashMap::new(),
             cached_gpus: vec![],
+            cached_gateway_ip: None,
+            cached_gateway_latency_ms: None,
         };
 
         let cpu = monitor.get_cpu_metrics();
@@ -132,6 +134,8 @@ mod tests {
             disk_read_rates: std::collections::HashMap::new(),
             disk_write_rates: std::collections::HashMap::new(),
             cached_gpus: vec![],
+            cached_gateway_ip: None,
+            cached_gateway_latency_ms: None,
         };
 
         let memory = monitor.get_memory_metrics();
