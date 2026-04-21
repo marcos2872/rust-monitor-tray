@@ -1,149 +1,73 @@
-# Monitor Tray
+<p align="center">
+  <img src="assets/icon.png" width="120" alt="Monitor Tray icon"/>
+</p>
 
-Monitor de sistema para **KDE Plasma** com arquitetura **backend Rust + DBus + Plasmoid**.
+<h1 align="center">Monitor Tray</h1>
 
-O binário Rust coleta métricas do sistema e expõe os dados via DBus. O frontend em `plasma/` consome essas métricas para renderizar o widget compacto no painel e o popup expandido com tabs para CPU, RAM, Disk, Network, Sensors e System.
+<p align="center">
+  Monitor de sistema para <strong>KDE Plasma</strong> — backend Rust + DBus + Plasmoid
+</p>
 
-## Visão geral
+<p align="center">
+  <img src="https://img.shields.io/badge/KDE_Plasma-6-3daee9?logo=kde&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Rust-1.70+-f74c00?logo=rust&logoColor=white"/>
+  <img src="https://img.shields.io/badge/License-MIT-green"/>
+</p>
 
-- **Foco exclusivo em KDE/Plasma**
-- **Backend Rust** com coleta via `sysinfo` e leitura de sensores `hwmon`
-- **Serviço DBus**: `com.monitortray.Backend`
-- **Plasmoid KDE** em `plasma/`
-- **Popup expandido com tabs**
-- **Histórico local de 5 minutos** para CPU, RAM e Network
-- **Sem código legado de GTK/AppIndicator** — o projeto agora é KDE-first
+---
 
-## Modos do binário
-
-```bash
-# inicia o backend DBus para o Plasmoid KDE
-cargo run -- --dbus
-
-# imprime uma amostra de métricas em JSON
-cargo run -- --json
-
-# sem argumentos, também inicia em modo DBus
-cargo run
-```
-
-## Interface DBus
-
-- **Serviço:** `com.monitortray.Backend`
-- **Path:** `/com/monitortray/Backend`
-- **Interface:** `com.monitortray.Backend`
-- **Métodos:**
-  - `Ping`
-  - `GetMetricsJson`
-
-Exemplo de teste manual:
+## Instalação rápida
 
 ```bash
-gdbus call --session \
-  --dest com.monitortray.Backend \
-  --object-path /com/monitortray/Backend \
-  --method com.monitortray.Backend.GetMetricsJson
+curl -fsSL https://raw.githubusercontent.com/marcos2872/rust-monitor-tray/main/install.sh | sh
 ```
 
-## Estrutura do projeto
+> **Requisitos:** Rust/Cargo, `kpackagetool6` (ou `kpackagetool5`), `systemctl --user`, `gdbus`
 
-```text
-monitor-tray/
-├─ plasma/
-│  ├─ metadata.json
-│  └─ contents/
-│     ├─ config/config.qml
-│     └─ ui/
-│        ├─ main.qml
-│        ├─ CompactRepresentation.qml
-│        ├─ FullRepresentation.qml
-│        ├─ Theme.qml
-│        ├─ components/
-│        └─ tabs/
-├─ src/
-│  ├─ dbus.rs
-│  ├─ lib.rs
-│  ├─ main.rs
-│  └─ monitor/
-│     ├─ collector.rs
-│     ├─ hwmon.rs
-│     ├─ models.rs
-│     └─ mod.rs
-├─ Makefile
-├─ install-kde.sh
-└─ Cargo.toml
-```
+---
 
-## Dependências de desenvolvimento
+## O que é
 
-### Rust
-- Rust 1.70+
-- Cargo
-- componente `clippy` do Rust (`rustup component add clippy`)
+Widget para o painel do KDE Plasma que exibe métricas do sistema em tempo real.
+O binário Rust coleta os dados e os expõe via **DBus**; o Plasmoid QML consome
+essa interface e renderiza a UI.
 
-### KDE / Plasma
-Ferramentas esperadas no fluxo de desenvolvimento:
-- `plasmashell`
-- `kpackagetool5` ou `kpackagetool6`
-- `gdbus`
-- `qmllint` (para `make qml-lint` / `make lint`)
+### Abas disponíveis
 
-### Linux / sensores
-Para melhor cobertura de sensores, o sistema deve expor dados em:
-- `/sys/class/hwmon`
+| Aba | Métricas |
+|---|---|
+| **CPU** | Uso total, user/system/idle/steal, load average, frequência, histórico, por núcleo |
+| **RAM** | Usada/total, swap, histórico |
+| **GPU** | Uso, VRAM, clocks, temperatura, potência, fan — AMD, NVIDIA e Intel |
+| **Disk** | Uso por partição, I/O read/write em tempo real, histórico |
+| **Network** | Download/upload instantâneo, histórico, status das interfaces |
+| **Sensors** | Temperaturas por chip (CPU/GPU/NVMe), fans (RPM), tensão, corrente, potência |
+| **System** | Hostname, OS, kernel, arquitetura, processos, load avg, resumo de hardware |
 
-## Fluxo sugerido no KDE
+### Suporte a GPU
+
+| Driver | Fonte | Dados |
+|---|---|---|
+| AMD (`amdgpu`) | `/sys/class/drm/` | Uso %, VRAM, clocks, temp, potência, fan RPM |
+| NVIDIA | `nvidia-smi` | Uso %, VRAM, clocks, temp, potência |
+| Intel (`i915`/`xe`) | `/sys/class/drm/` | Clock (kernel ≥ 5.16), temperatura |
+
+---
+
+## Instalação manual
 
 ```bash
-# instala/recarrega o plasmoid e sobe o backend DBus
-make kde-dev
-
-# ou, separando os passos:
-make kde-refresh
-cargo run -- --dbus
-```
-
-## Targets úteis do Makefile
-
-```bash
-make build         # cargo build --release
-make test          # cargo test
-make lint          # cargo clippy + qmllint
-make qml-lint      # valida os arquivos QML do plasmoid
-make run-json      # imprime métricas em JSON
-make run-dbus      # sobe o backend DBus
-make kde-refresh   # build + instala/recarrega o plasmoid
-make kde-dev       # kde-refresh + backend DBus
-make dev           # hot reload do backend DBus com cargo-watch
-```
-
-> Os antigos scripts de empacotamento e a UI legada de tray foram removidos. O fluxo oficial agora é backend DBus + Plasmoid KDE.
-
-## Sensores suportados hoje
-
-O backend expõe, quando o hardware/drivers publicam os dados:
-
-- **Temperaturas** via `sysinfo::Components`
-- **Fans** via `hwmon`
-- **Voltage** via `hwmon`
-- **Current** via `hwmon`
-- **Power** via `hwmon`
-
-Ainda não cobre integralmente:
-- **Energy**
-- fontes extras como `powercap` / `power_supply`
-
-## Instalação rápida no KDE
-
-```bash
+git clone https://github.com/marcos2872/rust-monitor-tray.git
+cd rust-monitor-tray
 ./install-kde.sh
 ```
 
 O script:
-- compila o backend em release
-- instala o binário em `~/.local/bin`
-- instala/atualiza o plasmoid
-- cria e ativa um serviço `systemd --user` para o backend DBus
+1. Compila o backend Rust em release
+2. Instala o binário em `~/.local/bin`
+3. Instala o plasmoid via `kpackagetool`
+4. Copia o ícone para `~/.local/share/icons/hicolor/` e atualiza o cache KDE
+5. Cria e ativa o serviço `systemd --user` para o backend DBus
 
 ## Remoção
 
@@ -151,61 +75,95 @@ O script:
 ./uninstall-kde.sh
 ```
 
-O script de remoção:
-- desativa e remove o serviço `systemd --user`
-- remove o binário instalado
-- remove o plasmoid do Plasma
-- recarrega o `plasmashell`
+---
+
+## Arquitetura
+
+```
+monitor-tray/
+├── src/
+│   ├── main.rs              # entry point (--dbus | --json | --help)
+│   ├── lib.rs               # API pública: collect_metrics*
+│   ├── dbus.rs              # serviço DBus (zbus)
+│   └── monitor/
+│       ├── models.rs        # structs serializáveis (CpuMetrics, GpuInfo…)
+│       ├── collector.rs     # SystemMonitor: coleta e delta de métricas
+│       ├── gpu.rs           # coleta GPU: AMD/NVIDIA/Intel
+│       └── hwmon.rs         # leitura de /sys/class/hwmon
+├── plasma/
+│   ├── metadata.json
+│   └── contents/ui/
+│       ├── main.qml                  # polling DBus, histórico
+│       ├── FullRepresentation.qml    # layout + tabs fixas no topo
+│       ├── CompactRepresentation.qml # exibição no painel
+│       ├── Theme.qml                 # paleta, espaçamentos, utilitários
+│       ├── components/               # HeroMetric, HistoryChart, MetricBar…
+│       └── tabs/                     # CpuTab, MemoryTab, GpuTab, DiskTab…
+├── install.sh               # instalador one-liner (curl)
+├── install-kde.sh           # instalação local completa
+└── uninstall-kde.sh         # remoção completa
+```
+
+---
+
+## Interface DBus
+
+| Campo | Valor |
+|---|---|
+| Serviço | `com.monitortray.Backend` |
+| Path | `/com/monitortray/Backend` |
+| Métodos | `Ping`, `GetMetricsJson` |
+
+```bash
+# testar o backend manualmente
+gdbus call --session \
+  --dest com.monitortray.Backend \
+  --object-path /com/monitortray/Backend \
+  --method com.monitortray.Backend.GetMetricsJson
+```
+
+---
 
 ## Desenvolvimento
 
-### Clonar e rodar
-
 ```bash
-git clone <repository-url>
-cd monitor-tray
-make test
-make lint
-make kde-dev
+make test          # cargo test
+make lint          # cargo clippy + qmllint
+make kde-dev       # build + instala plasmoid + sobe backend DBus
+make run-json      # imprime métricas em JSON (debug)
 ```
 
-### Validar o backend isoladamente
+### Targets do Makefile
 
-```bash
-cargo run -- --json
-cargo run -- --dbus
-```
+| Target | Descrição |
+|---|---|
+| `make build` | `cargo build --release` |
+| `make test` | `cargo test` |
+| `make lint` | clippy + qmllint |
+| `make kde-refresh` | build + reinstala plasmoid |
+| `make kde-dev` | `kde-refresh` + backend DBus |
+| `make run-json` | amostra de métricas em JSON |
+| `make run-dbus` | sobe o backend DBus |
+| `make dev` | hot reload com `cargo-watch` |
 
-### Build de produção
+---
 
-```bash
-cargo build --release
-```
+## Dependências
 
-## Troubleshooting
+### Rust
+- Rust 1.70+, Cargo
+- `rustup component add clippy`
 
-### O popup do plasmoid não atualiza
-- confirme que o backend DBus está rodando: `cargo run -- --dbus`
-- teste o método DBus com `gdbus call`
-- recarregue o shell com `make kde-refresh`
+### Sistema
+- KDE Plasma 6 (ou 5)
+- `kpackagetool6` / `kpackagetool5`
+- `systemctl --user`
+- `gdbus`
+- Kernel com `/sys/class/hwmon` exposto (sensores)
+- `nvidia-smi` no PATH para monitoramento NVIDIA
 
-### O plasmoid não aparece ou não instala
-- confirme que `kpackagetool5` ou `kpackagetool6` está disponível
-- confirme que `plasmashell` está instalado
-- rode `make plasmoid-install`
-
-### Sensores não aparecem
-- a disponibilidade depende do hardware e do que o kernel expõe em `/sys/class/hwmon`
-- em algumas máquinas haverá somente temperaturas
-
-## Tecnologias
-
-- **Rust**
-- **Tokio**
-- **zbus**
-- **sysinfo**
-- **QML / Plasma**
+---
 
 ## Licença
 
-MIT.
+MIT
