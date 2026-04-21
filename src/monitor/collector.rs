@@ -14,6 +14,8 @@ use super::{
 const BYTES_TO_GB: f64 = 1024.0 * 1024.0 * 1024.0;
 const SECTOR_BYTES: f64 = 512.0;
 const TOP_PROCESSES: usize = 15;
+/// Mede latência a cada N ciclos (~10s com sampleInterval de 1500ms).
+const LATENCY_INTERVAL_CYCLES: u32 = 7;
 
 pub(crate) fn bytes_to_gb(bytes: u64) -> f64 {
     bytes as f64 / BYTES_TO_GB
@@ -188,6 +190,7 @@ pub struct SystemMonitor {
     pub(crate) cached_gpus: Vec<GpuInfo>,
     pub(crate) cached_gateway_ip: Option<String>,
     pub(crate) cached_gateway_latency_ms: Option<f32>,
+    pub(crate) latency_cycle: u32,
 }
 
 impl Default for SystemMonitor {
@@ -208,12 +211,23 @@ impl SystemMonitor {
             disk_read_rates: HashMap::new(), disk_write_rates: HashMap::new(),
             cached_gpus: vec![],
             cached_gateway_ip: None, cached_gateway_latency_ms: None,
+            latency_cycle: 0,
         }
     }
 
-    /// Atualiza todas as métricas. O ping do gateway roda em paralelo com o sleep de 200ms.
+    /// Atualiza todas as métricas.
+    /// O ping do gateway só roda a cada LATENCY_INTERVAL_CYCLES ciclos (~10s),
+    /// reduzindo subprocessos de 40/min para ~6/min.
     pub async fn update_metrics(&mut self) {
-        let ping_task       = tokio::spawn(measure_gateway_latency());
+        // Dispara ping apenas quando o contador atingir o intervalo
+        self.latency_cycle += 1;
+        let ping_task = if self.latency_cycle >= LATENCY_INTERVAL_CYCLES {
+            self.latency_cycle = 0;
+            Some(tokio::spawn(measure_gateway_latency()))
+        } else {
+            None
+        };
+
         let cpu_stat_before = read_cpu_stat_raw();
         let disk_io_before  = read_diskstats();
 
@@ -245,9 +259,12 @@ impl SystemMonitor {
 
         self.cached_gpus = super::gpu::collect_gpu_metrics().await;
 
-        let (gw_ip, gw_lat) = ping_task.await.unwrap_or((None, None));
-        self.cached_gateway_ip          = gw_ip;
-        self.cached_gateway_latency_ms  = gw_lat;
+        // Atualiza latência apenas quando o ping foi disparado neste ciclo
+        if let Some(task) = ping_task {
+            let (gw_ip, gw_lat) = task.await.unwrap_or((None, None));
+            self.cached_gateway_ip         = gw_ip;
+            self.cached_gateway_latency_ms = gw_lat;
+        }
     }
 
     pub fn get_cpu_metrics(&self) -> CpuMetrics {

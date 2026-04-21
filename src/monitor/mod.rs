@@ -105,6 +105,7 @@ mod tests {
             cached_gpus: vec![],
             cached_gateway_ip: None,
             cached_gateway_latency_ms: None,
+            latency_cycle: 0,
         };
 
         let cpu = monitor.get_cpu_metrics();
@@ -136,6 +137,7 @@ mod tests {
             cached_gpus: vec![],
             cached_gateway_ip: None,
             cached_gateway_latency_ms: None,
+            latency_cycle: 0,
         };
 
         let memory = monitor.get_memory_metrics();
