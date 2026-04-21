@@ -55,7 +55,7 @@ ColumnLayout {
     }
 
     function secondaryDisks() {
-        var primary = primaryDisk();
+        var primary = root.cachedPrimaryDisk;
         var rows = metrics && metrics.disk && metrics.disk.disks
             ? metrics.disk.disks.slice(0)
             : [];
@@ -66,6 +66,10 @@ ColumnLayout {
         return rows.slice(0, 4);
     }
 
+    // Propriedades calculadas uma vez por ciclo de métricas
+    readonly property var cachedPrimaryDisk: metrics ? primaryDisk() : null
+    readonly property var cachedSecondaryDisks: metrics ? secondaryDisks() : []
+
     Layout.fillWidth: true
     spacing: theme.spacingM
 
@@ -74,25 +78,25 @@ ColumnLayout {
         Layout.fillWidth: true
         hero: true
         title: "Disk"
-        subtitle: primaryDisk()
-            ? primaryDisk().name + " · " + primaryDisk().mount_point
+        subtitle: root.cachedPrimaryDisk
+            ? root.cachedPrimaryDisk.name + " · " + root.cachedPrimaryDisk.mount_point
             : "Sem dados"
 
         HeroMetric {
             Layout.fillWidth: true
             label: "Uso principal"
-            value: primaryDisk() ? String(Math.round(primaryDisk().usage_percent)) : "0"
+            value: root.cachedPrimaryDisk ? String(Math.round(root.cachedPrimaryDisk.usage_percent)) : "0"
             unit: "%"
             accentColor: theme.diskColor
-            footnote: primaryDisk()
-                ? (root.fmtOne(primaryDisk().used_space) + " de " + root.fmtOne(primaryDisk().total_space) + " GB")
+            footnote: root.cachedPrimaryDisk
+                ? (root.fmtOne(root.cachedPrimaryDisk.used_space) + " de " + root.fmtOne(root.cachedPrimaryDisk.total_space) + " GB")
                 : "-"
         }
 
         MetricBar {
-            visible: primaryDisk() !== null
-            label: primaryDisk() ? primaryDisk().mount_point : "-"
-            value: primaryDisk() ? primaryDisk().usage_percent : 0
+            visible: root.cachedPrimaryDisk !== null
+            label: root.cachedPrimaryDisk ? root.cachedPrimaryDisk.mount_point : "-"
+            value: root.cachedPrimaryDisk ? root.cachedPrimaryDisk.usage_percent : 0
             barColor: theme.diskColor
         }
 
@@ -100,7 +104,7 @@ ColumnLayout {
             Layout.fillWidth: true
             accentColor: theme.successColor
             label: "Livre"
-            value: primaryDisk() ? root.fmtOne(primaryDisk().available_space) + " GB" : "-"
+            value: root.cachedPrimaryDisk ? root.fmtOne(root.cachedPrimaryDisk.available_space) + " GB" : "-"
         }
     }
 
@@ -167,7 +171,7 @@ ColumnLayout {
         subtitle: "Secundárias por uso"
 
         Repeater {
-            model: root.secondaryDisks()
+            model: root.cachedSecondaryDisks
 
             delegate: ColumnLayout {
                 Layout.fillWidth: true

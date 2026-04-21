@@ -91,6 +91,7 @@ mod tests {
             cpu_user_percent: 0.0,
             cpu_system_percent: 0.0,
             cpu_idle_percent: 0.0,
+            cpu_steal_percent: 0.0,
             disk_read_rates: std::collections::HashMap::new(),
             disk_write_rates: std::collections::HashMap::new(),
         };
@@ -103,6 +104,7 @@ mod tests {
         assert_eq!(cpu.user_percent, 0.0);
         assert_eq!(cpu.system_percent, 0.0);
         assert_eq!(cpu.idle_percent, 0.0);
+        assert_eq!(cpu.steal_percent, 0.0);
         assert_eq!(cpu.frequency, 0);
         assert_eq!(cpu.name, "");
     }
@@ -117,6 +119,7 @@ mod tests {
             cpu_user_percent: 0.0,
             cpu_system_percent: 0.0,
             cpu_idle_percent: 0.0,
+            cpu_steal_percent: 0.0,
             disk_read_rates: std::collections::HashMap::new(),
             disk_write_rates: std::collections::HashMap::new(),
         };

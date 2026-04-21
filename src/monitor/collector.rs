@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::Path;
+use std::time::Instant;
 
 use sysinfo::{Components, Disks, Networks, System};
 
@@ -11,19 +12,16 @@ use super::{
 };
 
 const BYTES_TO_GB: f64 = 1024.0 * 1024.0 * 1024.0;
-/// 1 setor = 512 bytes; janela de medição = 200 ms → ×5 para bytes/seg.
-const SECTOR_BYTES: u64 = 512;
-const IO_INTERVALS_PER_SEC: u64 = 5;
+const SECTOR_BYTES: f64 = 512.0;
 
 pub(crate) fn bytes_to_gb(bytes: u64) -> f64 {
     bytes as f64 / BYTES_TO_GB
 }
 
 // ---------------------------------------------------------------------------
-// Leitura de /proc/stat para breakdown user/system/idle da CPU
+// Leitura de /proc/stat para breakdown user/system/idle/steal da CPU
 // ---------------------------------------------------------------------------
 
-/// Snapshot cru da linha "cpu" de /proc/stat.
 #[derive(Clone)]
 pub(crate) struct CpuStatRaw {
     pub(crate) user: u64,
@@ -37,17 +35,9 @@ pub(crate) struct CpuStatRaw {
 }
 
 impl CpuStatRaw {
-    fn total_idle(&self) -> u64 {
-        self.idle + self.iowait
-    }
-
-    fn total_system(&self) -> u64 {
-        self.system + self.irq + self.softirq
-    }
-
-    fn total_user(&self) -> u64 {
-        self.user + self.nice
-    }
+    fn total_idle(&self) -> u64 { self.idle + self.iowait }
+    fn total_system(&self) -> u64 { self.system + self.irq + self.softirq }
+    fn total_user(&self) -> u64 { self.user + self.nice }
 }
 
 fn read_cpu_stat_raw() -> Option<CpuStatRaw> {
@@ -74,8 +64,8 @@ fn read_cpu_stat_raw() -> Option<CpuStatRaw> {
     None
 }
 
-/// Calcula (user%, system%, idle%) a partir de dois snapshots de /proc/stat.
-fn compute_cpu_percents(prev: &CpuStatRaw, curr: &CpuStatRaw) -> (f32, f32, f32) {
+/// Retorna (user%, system%, idle%, steal%) a partir de dois snapshots de /proc/stat.
+fn compute_cpu_percents(prev: &CpuStatRaw, curr: &CpuStatRaw) -> (f32, f32, f32, f32) {
     let d_user   = curr.total_user().saturating_sub(prev.total_user());
     let d_system = curr.total_system().saturating_sub(prev.total_system());
     let d_idle   = curr.total_idle().saturating_sub(prev.total_idle());
@@ -83,7 +73,7 @@ fn compute_cpu_percents(prev: &CpuStatRaw, curr: &CpuStatRaw) -> (f32, f32, f32)
     let d_total  = d_user + d_system + d_idle + d_steal;
 
     if d_total == 0 {
-        return (0.0, 0.0, 100.0);
+        return (0.0, 0.0, 100.0, 0.0);
     }
 
     let scale = 100.0 / d_total as f32;
@@ -91,6 +81,7 @@ fn compute_cpu_percents(prev: &CpuStatRaw, curr: &CpuStatRaw) -> (f32, f32, f32)
         (d_user   as f32 * scale).min(100.0),
         (d_system as f32 * scale).min(100.0),
         (d_idle   as f32 * scale).min(100.0),
+        (d_steal  as f32 * scale).min(100.0),
     )
 }
 
@@ -106,8 +97,6 @@ fn read_diskstats() -> HashMap<String, (u64, u64)> {
         Err(_) => return result,
     };
     for line in content.lines() {
-        // Formato: major minor nome col1..col11+
-        // col5 = setores lidos, col9 = setores escritos (índice 0-based)
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 10 {
             continue;
@@ -133,11 +122,13 @@ fn device_basename(path: &std::ffi::OsStr) -> String {
 // Estado da interface de rede via /sys/class/net
 // ---------------------------------------------------------------------------
 
-/// Retorna true se a interface estiver "up" segundo /sys/class/net/{name}/operstate.
+/// Retorna true quando a interface está ativa.
+/// "up"      → link físico confirmado.
+/// "unknown" → interface sem conceito de link (loopback, tunnels) — tratada como UP.
 fn read_interface_operstate(name: &str) -> bool {
-    std::fs::read_to_string(format!("/sys/class/net/{name}/operstate"))
-        .map(|s| s.trim() == "up")
-        .unwrap_or(false)
+    let state = std::fs::read_to_string(format!("/sys/class/net/{name}/operstate"))
+        .unwrap_or_default();
+    matches!(state.trim(), "up" | "unknown")
 }
 
 // ---------------------------------------------------------------------------
@@ -149,15 +140,11 @@ pub struct SystemMonitor {
     pub(crate) disks: Disks,
     pub(crate) networks: Networks,
     pub(crate) components: Components,
-    /// Percentual de CPU consumido por processos do usuário (delta /proc/stat).
     pub(crate) cpu_user_percent: f32,
-    /// Percentual de CPU consumido pelo kernel (delta /proc/stat).
     pub(crate) cpu_system_percent: f32,
-    /// Percentual de CPU em idle (delta /proc/stat).
     pub(crate) cpu_idle_percent: f32,
-    /// Taxa de leitura por dispositivo em bytes/seg (janela 200 ms).
+    pub(crate) cpu_steal_percent: f32,
     pub(crate) disk_read_rates: HashMap<String, u64>,
-    /// Taxa de escrita por dispositivo em bytes/seg (janela 200 ms).
     pub(crate) disk_write_rates: HashMap<String, u64>,
 }
 
@@ -172,69 +159,66 @@ impl SystemMonitor {
         let mut system = System::new_all();
         system.refresh_all();
 
-        let disks      = Disks::new_with_refreshed_list();
-        let networks   = Networks::new_with_refreshed_list();
-        let components = Components::new_with_refreshed_list();
-
         Self {
             system,
-            disks,
-            networks,
-            components,
+            disks:      Disks::new_with_refreshed_list(),
+            networks:   Networks::new_with_refreshed_list(),
+            components: Components::new_with_refreshed_list(),
             cpu_user_percent:   0.0,
             cpu_system_percent: 0.0,
             cpu_idle_percent:   0.0,
+            cpu_steal_percent:  0.0,
             disk_read_rates:    HashMap::new(),
             disk_write_rates:   HashMap::new(),
         }
     }
 
-    /// Atualiza todas as métricas do sistema. Realiza duas amostragens com
-    /// 200 ms de intervalo para que os percentuais de CPU sejam precisos.
+    /// Atualiza métricas com duas amostragens separadas por ~200 ms.
+    /// Usa `Instant` para calcular taxas de I/O com o tempo real decorrido.
     pub async fn update_metrics(&mut self) {
-        // Snapshots antes do intervalo de medição
-        let cpu_stat_before  = read_cpu_stat_raw();
-        let disk_io_before   = read_diskstats();
+        let cpu_stat_before = read_cpu_stat_raw();
+        let disk_io_before  = read_diskstats();
 
         self.system.refresh_all();
         self.disks.refresh(false);
         self.networks.refresh(false);
         self.components.refresh(false);
 
+        let window_start = Instant::now();
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let elapsed_secs = window_start.elapsed().as_secs_f64().max(0.001);
 
         self.system.refresh_all();
         self.disks.refresh(false);
         self.networks.refresh(false);
         self.components.refresh(false);
 
-        // Snapshots após o intervalo de medição
         let cpu_stat_after = read_cpu_stat_raw();
         let disk_io_after  = read_diskstats();
 
-        // Atualiza breakdown de CPU (user/system/idle)
+        // Breakdown de CPU (user / system / idle / steal)
         if let (Some(before), Some(after)) = (cpu_stat_before, cpu_stat_after) {
-            let (user, system, idle) = compute_cpu_percents(&before, &after);
+            let (user, system, idle, steal) = compute_cpu_percents(&before, &after);
             self.cpu_user_percent   = user;
             self.cpu_system_percent = system;
             self.cpu_idle_percent   = idle;
+            self.cpu_steal_percent  = steal;
         }
 
-        // Atualiza taxas de I/O de disco (bytes/seg sobre janela de 200 ms)
+        // Taxas de I/O usando o tempo real decorrido (não assume 200 ms fixo)
         self.disk_read_rates.clear();
         self.disk_write_rates.clear();
         for (name, (sr_after, sw_after)) in &disk_io_after {
             if let Some((sr_before, sw_before)) = disk_io_before.get(name) {
                 let delta_read  = sr_after.saturating_sub(*sr_before);
                 let delta_write = sw_after.saturating_sub(*sw_before);
-                // bytes/seg = delta_setores × 512 / 0,2 s = delta × 512 × 5
                 self.disk_read_rates.insert(
                     name.clone(),
-                    delta_read  * SECTOR_BYTES * IO_INTERVALS_PER_SEC,
+                    (delta_read  as f64 * SECTOR_BYTES / elapsed_secs).round() as u64,
                 );
                 self.disk_write_rates.insert(
                     name.clone(),
-                    delta_write * SECTOR_BYTES * IO_INTERVALS_PER_SEC,
+                    (delta_write as f64 * SECTOR_BYTES / elapsed_secs).round() as u64,
                 );
             }
         }
@@ -249,18 +233,17 @@ impl SystemMonitor {
         } else {
             0.0
         };
-        let frequency = cpus.first().map(|cpu| cpu.frequency()).unwrap_or(0);
-        let name = cpus.first().map(|cpu| cpu.brand().to_string()).unwrap_or_default();
 
         CpuMetrics {
             usage_percent:   total_usage,
             user_percent:    self.cpu_user_percent,
             system_percent:  self.cpu_system_percent,
             idle_percent:    self.cpu_idle_percent,
+            steal_percent:   self.cpu_steal_percent,
             core_count,
             per_core_usage,
-            frequency,
-            name,
+            frequency: cpus.first().map(|c| c.frequency()).unwrap_or(0),
+            name:      cpus.first().map(|c| c.brand().to_string()).unwrap_or_default(),
         }
     }
 
@@ -297,8 +280,7 @@ impl SystemMonitor {
                 } else {
                     0.0
                 };
-
-                let device           = device_basename(disk.name());
+                let device              = device_basename(disk.name());
                 let read_bytes_per_sec  = *self.disk_read_rates.get(&device).unwrap_or(&0);
                 let write_bytes_per_sec = *self.disk_write_rates.get(&device).unwrap_or(&0);
 
@@ -315,29 +297,22 @@ impl SystemMonitor {
             })
             .collect();
 
-        let total_space             = disks.iter().map(|d| d.total_space).sum();
-        let used_space              = disks.iter().map(|d| d.used_space).sum();
-        let available_space         = disks.iter().map(|d| d.available_space).sum();
-        let total_read_bytes_per_sec  = disks.iter().map(|d| d.read_bytes_per_sec).sum();
-        let total_write_bytes_per_sec = disks.iter().map(|d| d.write_bytes_per_sec).sum();
-
         DiskMetrics {
+            total_space:              disks.iter().map(|d| d.total_space).sum(),
+            used_space:               disks.iter().map(|d| d.used_space).sum(),
+            available_space:          disks.iter().map(|d| d.available_space).sum(),
+            total_read_bytes_per_sec:  disks.iter().map(|d| d.read_bytes_per_sec).sum(),
+            total_write_bytes_per_sec: disks.iter().map(|d| d.write_bytes_per_sec).sum(),
             disks,
-            total_space,
-            used_space,
-            available_space,
-            total_read_bytes_per_sec,
-            total_write_bytes_per_sec,
         }
     }
 
     pub fn get_network_metrics(&self) -> NetworkMetrics {
         let mut interfaces          = HashMap::new();
-        let mut total_bytes_received    = 0;
-        let mut total_bytes_transmitted = 0;
+        let mut total_bytes_received    = 0u64;
+        let mut total_bytes_transmitted = 0u64;
 
         for (interface_name, data) in &self.networks {
-            let is_up = read_interface_operstate(interface_name);
             let interface = NetworkInterface {
                 bytes_received:      data.total_received(),
                 bytes_transmitted:   data.total_transmitted(),
@@ -345,44 +320,43 @@ impl SystemMonitor {
                 packets_transmitted: data.total_packets_transmitted(),
                 errors_received:     data.total_errors_on_received(),
                 errors_transmitted:  data.total_errors_on_transmitted(),
-                is_up,
+                is_up:               read_interface_operstate(interface_name),
             };
-
             total_bytes_received    += interface.bytes_received;
             total_bytes_transmitted += interface.bytes_transmitted;
             interfaces.insert(interface_name.clone(), interface);
         }
 
-        NetworkMetrics {
-            interfaces,
-            total_bytes_received,
-            total_bytes_transmitted,
-        }
+        NetworkMetrics { interfaces, total_bytes_received, total_bytes_transmitted }
     }
 
     pub fn get_sensor_metrics(&self) -> SensorMetrics {
-        let hwmon_metrics = collect_hwmon_metrics_from_path(Path::new(HWMON_BASE_PATH));
+        // Desestrutura hwmon_metrics para mover temperatures sem clone
+        let hwmon = collect_hwmon_metrics_from_path(Path::new(HWMON_BASE_PATH));
+        let (hwmon_temps, fans, voltages, currents, powers) = (
+            hwmon.temperatures,
+            hwmon.fans,
+            hwmon.voltages,
+            hwmon.currents,
+            hwmon.powers,
+        );
 
-        // Usa temperaturas do hwmon (coretemp, amdgpu, nvme, etc.) como fonte primária.
-        // Fallback para sysinfo::Components quando hwmon não encontrar nada
-        // (ex.: VMs, containers, sistemas sem módulos hwmon carregados).
-        let temperatures: Vec<TemperatureSensor> = if !hwmon_metrics.temperatures.is_empty() {
-            hwmon_metrics.temperatures.clone()
+        // hwmon é a fonte primária; sysinfo::Components é fallback para VMs/containers
+        let temperatures: Vec<TemperatureSensor> = if !hwmon_temps.is_empty() {
+            hwmon_temps
         } else {
             self.components
                 .iter()
-                .filter_map(|component| {
-                    let temperature = component.temperature()?;
-                    if !temperature.is_finite() {
-                        return None;
-                    }
-                    let label = component.label().trim();
+                .filter_map(|c| {
+                    let t = c.temperature()?;
+                    if !t.is_finite() { return None; }
+                    let label = c.label().trim();
                     Some(TemperatureSensor {
                         label: if label.is_empty() { "Sensor".to_string() } else { label.to_string() },
-                        chip: "Sistema".to_string(),
-                        temperature_celsius: temperature,
-                        max_celsius:      component.max().filter(|v| v.is_finite()),
-                        critical_celsius: component.critical().filter(|v| v.is_finite()),
+                        chip:  "Sistema".to_string(),
+                        temperature_celsius: t,
+                        max_celsius:      c.max().filter(|v| v.is_finite()),
+                        critical_celsius: c.critical().filter(|v| v.is_finite()),
                     })
                 })
                 .collect()
@@ -391,29 +365,24 @@ impl SystemMonitor {
         let average_temperature_celsius = if temperatures.is_empty() {
             None
         } else {
-            Some(
-                temperatures.iter().map(|s| s.temperature_celsius).sum::<f32>()
-                    / temperatures.len() as f32,
-            )
+            Some(temperatures.iter().map(|s| s.temperature_celsius).sum::<f32>()
+                / temperatures.len() as f32)
         };
 
-        let hottest_sensor = temperatures.iter().max_by(|l, r| {
-            l.temperature_celsius
-                .partial_cmp(&r.temperature_celsius)
+        let hottest = temperatures.iter().max_by(|l, r| {
+            l.temperature_celsius.partial_cmp(&r.temperature_celsius)
                 .unwrap_or(Ordering::Equal)
         });
-        let hottest_temperature_celsius = hottest_sensor.map(|s| s.temperature_celsius);
-        let hottest_label = hottest_sensor.map(|s| s.label.clone()).unwrap_or_default();
 
         SensorMetrics {
-            temperatures,
+            hottest_temperature_celsius: hottest.map(|s| s.temperature_celsius),
+            hottest_label:              hottest.map(|s| s.label.clone()).unwrap_or_default(),
             average_temperature_celsius,
-            hottest_temperature_celsius,
-            hottest_label,
-            fans:      hwmon_metrics.fans,
-            voltages:  hwmon_metrics.voltages,
-            currents:  hwmon_metrics.currents,
-            powers:    hwmon_metrics.powers,
+            temperatures,
+            fans,
+            voltages,
+            currents,
+            powers,
         }
     }
 
@@ -432,7 +401,7 @@ impl SystemMonitor {
                 architecture:   System::cpu_arch(),
                 process_count:  self.system.processes().len(),
             },
-            uptime:  System::uptime(),
+            uptime: System::uptime(),
             load_average: {
                 let la = System::load_average();
                 (la.one, la.five, la.fifteen)

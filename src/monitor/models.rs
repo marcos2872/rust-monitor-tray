@@ -7,6 +7,7 @@ pub struct CpuMetrics {
     pub user_percent: f32,
     pub system_percent: f32,
     pub idle_percent: f32,
+    pub steal_percent: f32,
     pub core_count: usize,
     pub per_core_usage: Vec<f32>,
     pub frequency: u64,

@@ -13,7 +13,7 @@ PlasmoidItem {
     switchHeight: 760
 
     property var metrics: ({
-        cpu: { usage_percent: 0, frequency: 0, core_count: 0, name: "", per_core_usage: [], user_percent: 0, system_percent: 0, idle_percent: 0 },
+        cpu: { usage_percent: 0, frequency: 0, core_count: 0, name: "", per_core_usage: [], user_percent: 0, system_percent: 0, idle_percent: 0, steal_percent: 0 },
         memory: { usage_percent: 0, used_memory: 0, total_memory: 0, available_memory: 0, total_swap: 0, used_swap: 0 },
         disk: { used_space: 0, total_space: 0, available_space: 0, disks: [], total_read_bytes_per_sec: 0, total_write_bytes_per_sec: 0 },
         network: { total_bytes_received: 0, total_bytes_transmitted: 0, interfaces: {} },
@@ -103,9 +103,10 @@ PlasmoidItem {
         if (!rawOutput || rawOutput.length === 0) {
             return "";
         }
-
         var text = rawOutput.trim();
-        if (text.startsWith("('") && text.endsWith("',)")) {
+        // gdbus pode retornar ('...',) com aspas simples ou ("...",) com aspas duplas
+        if ((text.startsWith("('") && text.endsWith("',)"))
+                || (text.startsWith('("') && text.endsWith('",'))) {
             return text.slice(2, -3);
         }
         return text;

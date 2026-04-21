@@ -9,11 +9,7 @@ ColumnLayout {
 
     property var metrics: ({})
 
-    function temperaturesSorted() {
-        var rows = metrics && metrics.sensors && metrics.sensors.temperatures ? metrics.sensors.temperatures.slice(0) : [];
-        rows.sort(function(a, b) { return (b.temperature_celsius || 0) - (a.temperature_celsius || 0); });
-        return rows;
-    }
+    // Código morto removido: temperaturesSorted() não era chamado diretamente.
 
     /// Mapeia o nome técnico do chip para uma categoria legível.
     function chipCategory(chip) {
@@ -104,11 +100,18 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: theme.spacingM
 
+    // Propriedades calculadas uma vez por ciclo de métricas
+    readonly property var cachedTemperatureGroups: metrics ? temperatureGroups() : []
+    readonly property var cachedFans:      metrics ? fansSorted()      : []
+    readonly property var cachedVoltages:  metrics ? voltagesSorted()  : []
+    readonly property var cachedCurrents:  metrics ? currentsSorted()  : []
+    readonly property var cachedPowers:    metrics ? powersSorted()    : []
+
     MetricCard {
         Layout.fillWidth: true
         hero: true
         title: "Sensors"
-        subtitle: "Inspirado na referência de sensores do monitor"
+        subtitle: root.cachedTemperatureGroups.length + " categorias · " + root.cachedFans.length + " fans · " + (root.cachedVoltages.length + root.cachedCurrents.length + root.cachedPowers.length) + " elétricos"
 
         RowLayout {
             Layout.fillWidth: true
@@ -133,9 +136,9 @@ ColumnLayout {
             HeroMetric {
                 Layout.fillWidth: true
                 label: "Fans"
-                value: String(root.fansSorted().length)
+                value: String(root.cachedFans.length)
                 accentColor: theme.cpuColor
-                footnote: String(root.voltagesSorted().length + root.currentsSorted().length + root.powersSorted().length) + " leituras elétricas"
+                footnote: String(root.cachedVoltages.length + root.cachedCurrents.length + root.cachedPowers.length) + " leituras elétricas"
             }
         }
     }
@@ -143,10 +146,10 @@ ColumnLayout {
     MetricCard {
         Layout.fillWidth: true
         title: "Fans"
-        subtitle: root.fansSorted().length > 0 ? "RPM e duty cycle quando disponível" : "Nenhum fan exposto em /sys/class/hwmon"
+        subtitle: root.cachedFans.length > 0 ? "RPM e duty cycle quando disponível" : "Nenhum fan exposto em /sys/class/hwmon"
 
         Repeater {
-            model: root.fansSorted()
+            model: root.cachedFans
 
             delegate: FanRow {
                 Layout.fillWidth: true
@@ -163,12 +166,12 @@ ColumnLayout {
         title: "Temperature"
         subtitle: {
             var total = metrics && metrics.sensors ? metrics.sensors.temperatures.length : 0;
-            var groups = root.temperatureGroups().length;
+            var groups = root.cachedTemperatureGroups.length;
             return total > 0 ? total + " sensores · " + groups + " categorias" : "Sem leituras de temperatura";
         }
 
         Repeater {
-            model: root.temperatureGroups()
+            model: root.cachedTemperatureGroups
 
             delegate: ColumnLayout {
                 Layout.fillWidth: true
@@ -202,7 +205,7 @@ ColumnLayout {
         }
 
         PlasmaComponents3.Label {
-            visible: root.temperatureGroups().length === 0
+            visible: root.cachedTemperatureGroups.length === 0
             text: "O backend não encontrou sensores de temperatura nesta máquina."
             color: theme.mutedTextColor
             Layout.fillWidth: true
@@ -218,11 +221,11 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             title: "Voltage"
-            subtitle: root.voltagesSorted().length > 0 ? root.voltagesSorted().length + " leituras" : "Sem tensão"
+            subtitle: root.cachedVoltages.length > 0 ? root.cachedVoltages.length + " leituras" : "Sem tensão"
 
             SensorValueList {
                 Layout.fillWidth: true
-                items: root.voltagesSorted()
+                items: root.cachedVoltages
                 valueProp: "volts"
                 suffix: " V"
                 decimals: 3
@@ -235,11 +238,11 @@ ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
             title: "Current"
-            subtitle: root.currentsSorted().length > 0 ? root.currentsSorted().length + " leituras" : "Sem corrente"
+            subtitle: root.cachedCurrents.length > 0 ? root.cachedCurrents.length + " leituras" : "Sem corrente"
 
             SensorValueList {
                 Layout.fillWidth: true
-                items: root.currentsSorted()
+                items: root.cachedCurrents
                 valueProp: "amps"
                 suffix: " A"
                 decimals: 2
@@ -252,11 +255,11 @@ ColumnLayout {
     MetricCard {
         Layout.fillWidth: true
         title: "Power"
-        subtitle: root.powersSorted().length > 0 ? root.powersSorted().length + " leituras de potência" : "Sem potência"
+        subtitle: root.cachedPowers.length > 0 ? root.cachedPowers.length + " leituras de potência" : "Sem potência"
 
         SensorValueList {
             Layout.fillWidth: true
-            items: root.powersSorted()
+            items: root.cachedPowers
             valueProp: "watts"
             suffix: " W"
             decimals: 2
