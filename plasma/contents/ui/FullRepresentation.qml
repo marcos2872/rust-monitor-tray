@@ -99,10 +99,10 @@ PlasmaComponents3.ScrollView {
 
                     PlasmaComponents3.TabButton { text: "CPU" }
                     PlasmaComponents3.TabButton { text: "RAM" }
+                    PlasmaComponents3.TabButton { text: "GPU" }
                     PlasmaComponents3.TabButton { text: "Disk" }
                     PlasmaComponents3.TabButton { text: "Network" }
                     PlasmaComponents3.TabButton { text: "Sensors" }
-                    PlasmaComponents3.TabButton { text: "GPU" }
                     PlasmaComponents3.TabButton { text: "System" }
                 }
 
@@ -112,10 +112,10 @@ PlasmaComponents3.ScrollView {
                     Layout.preferredHeight: item ? item.implicitHeight : 0
                     sourceComponent: root.currentTab === 0 ? cpuTabComponent
                         : root.currentTab === 1 ? memoryTabComponent
-                        : root.currentTab === 2 ? diskTabComponent
-                        : root.currentTab === 3 ? networkTabComponent
-                        : root.currentTab === 4 ? sensorsTabComponent
-                        : root.currentTab === 5 ? gpuTabComponent
+                        : root.currentTab === 2 ? gpuTabComponent
+                        : root.currentTab === 3 ? diskTabComponent
+                        : root.currentTab === 4 ? networkTabComponent
+                        : root.currentTab === 5 ? sensorsTabComponent
                         : systemTabComponent
                 }
             }
