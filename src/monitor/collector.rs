@@ -7,7 +7,7 @@ use sysinfo::{Components, Disks, Networks, System};
 use super::hwmon::{collect_hwmon_metrics_from_path, HWMON_BASE_PATH};
 use super::{
     CpuMetrics, DiskInfo, DiskMetrics, MemoryMetrics, NetworkInterface, NetworkMetrics,
-    SensorMetrics, SystemMetrics, TemperatureSensor,
+    SensorMetrics, SystemInfo, SystemMetrics, TemperatureSensor,
 };
 
 const BYTES_TO_GB: f64 = 1024.0 * 1024.0 * 1024.0;
@@ -424,6 +424,14 @@ impl SystemMonitor {
             disk:    self.get_disk_metrics(),
             network: self.get_network_metrics(),
             sensors: self.get_sensor_metrics(),
+            system_info: SystemInfo {
+                hostname:       System::host_name().unwrap_or_else(|| "unknown".to_string()),
+                os_name:        System::name().unwrap_or_else(|| "Linux".to_string()),
+                os_version:     System::os_version().unwrap_or_default(),
+                kernel_version: System::kernel_version().unwrap_or_default(),
+                architecture:   System::cpu_arch(),
+                process_count:  self.system.processes().len(),
+            },
             uptime:  System::uptime(),
             load_average: {
                 let la = System::load_average();

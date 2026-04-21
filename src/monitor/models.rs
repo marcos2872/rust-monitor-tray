@@ -110,12 +110,23 @@ pub struct SensorMetrics {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemInfo {
+    pub hostname: String,
+    pub os_name: String,
+    pub os_version: String,
+    pub kernel_version: String,
+    pub architecture: String,
+    pub process_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
     pub cpu: CpuMetrics,
     pub memory: MemoryMetrics,
     pub disk: DiskMetrics,
     pub network: NetworkMetrics,
     pub sensors: SensorMetrics,
+    pub system_info: SystemInfo,
     pub uptime: u64,
     pub load_average: (f64, f64, f64),
 }

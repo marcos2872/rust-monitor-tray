@@ -27,6 +27,14 @@ PlasmoidItem {
             currents: [],
             powers: []
         },
+        system_info: {
+            hostname: "",
+            os_name: "",
+            os_version: "",
+            kernel_version: "",
+            architecture: "",
+            process_count: 0
+        },
         uptime: 0,
         load_average: [0, 0, 0]
     })
