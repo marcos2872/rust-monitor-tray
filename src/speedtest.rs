@@ -9,9 +9,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::{Mutex, Notify};
 
-use crate::monitor::{
-    NetworkSpeedTestPhase, NetworkSpeedTestState, NetworkSpeedTestStatus,
-};
+use crate::monitor::{NetworkSpeedTestPhase, NetworkSpeedTestState, NetworkSpeedTestStatus};
 
 const SPEED_TEST_TIMEOUT: Duration = Duration::from_secs(45);
 
@@ -153,7 +151,9 @@ impl NetworkSpeedTestManager {
                     phase: NetworkSpeedTestPhase::Done,
                     started_at_unix_ms: self.get_status().await.started_at_unix_ms,
                     finished_at_unix_ms: Some(current_unix_ms()),
-                    error: Some("Tempo limite excedido ao executar o teste de velocidade".to_string()),
+                    error: Some(
+                        "Tempo limite excedido ao executar o teste de velocidade".to_string(),
+                    ),
                     ..NetworkSpeedTestStatus::default()
                 })
                 .await;
@@ -349,7 +349,10 @@ fn read_f64(value: &Value, path: &str) -> Result<f64, String> {
 }
 
 fn read_string(value: &Value) -> Option<String> {
-    value.as_str().map(|text| text.trim().to_string()).filter(|text| !text.is_empty())
+    value
+        .as_str()
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
 }
 
 fn join_optional_parts(parts: &[Option<String>]) -> Option<String> {
@@ -439,6 +442,9 @@ mod tests {
         assert!((result.download_mbps - 85.0).abs() < 0.01);
         assert!((result.upload_mbps - 15.0).abs() < 0.01);
         assert_eq!(result.server_name.as_deref(), Some("Provedor X · Node 1"));
-        assert_eq!(result.server_location.as_deref(), Some("BR · node1.example.com"));
+        assert_eq!(
+            result.server_location.as_deref(),
+            Some("BR · node1.example.com")
+        );
     }
 }

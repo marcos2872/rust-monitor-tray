@@ -6,9 +6,8 @@ use zbus::{interface, ConnectionBuilder};
 
 use crate::{
     cancel_network_speed_test, collect_metrics_json, collect_slow_metrics_json,
-    get_network_speed_test_status_json, monitor::SystemMonitor,
-    speedtest::NetworkSpeedTestManager, start_network_speed_test, DBUS_OBJECT_PATH,
-    DBUS_SERVICE_NAME,
+    get_network_speed_test_status_json, monitor::SystemMonitor, speedtest::NetworkSpeedTestManager,
+    start_network_speed_test, DBUS_OBJECT_PATH, DBUS_SERVICE_NAME,
 };
 
 const FAST_METRICS_REFRESH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(1000);
@@ -28,8 +27,8 @@ impl Default for MetricsBackend {
 impl MetricsBackend {
     pub fn new() -> Self {
         let monitor = SystemMonitor::new();
-        let initial_fast_metrics = serde_json::to_string(&monitor.get_fast_metrics())
-            .unwrap_or_else(|_| "{}".to_string());
+        let initial_fast_metrics =
+            serde_json::to_string(&monitor.get_fast_metrics()).unwrap_or_else(|_| "{}".to_string());
         let monitor = Arc::new(Mutex::new(monitor));
         let fast_metrics_cache = Arc::new(RwLock::new(initial_fast_metrics));
 
@@ -50,7 +49,9 @@ fn spawn_fast_metrics_updater(
     tokio::spawn(async move {
         loop {
             if let Ok(mut locked_monitor) = monitor.try_lock() {
-                if let Ok(json) = serde_json::to_string(&crate::collect_fast_metrics(&mut locked_monitor).await) {
+                if let Ok(json) =
+                    serde_json::to_string(&crate::collect_fast_metrics(&mut locked_monitor).await)
+                {
                     *fast_metrics_cache.write().await = json;
                 }
             }

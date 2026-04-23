@@ -31,7 +31,9 @@ pub async fn collect_metrics_once() -> SystemMetrics {
     collect_metrics(&mut monitor).await
 }
 
-pub async fn collect_metrics_json(monitor: &mut SystemMonitor) -> Result<String, serde_json::Error> {
+pub async fn collect_metrics_json(
+    monitor: &mut SystemMonitor,
+) -> Result<String, serde_json::Error> {
     serde_json::to_string(&collect_metrics(monitor).await)
 }
 

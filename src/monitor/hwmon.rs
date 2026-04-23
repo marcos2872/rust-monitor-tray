@@ -125,16 +125,14 @@ pub(crate) fn collect_hwmon_metrics_from_path(base_path: &Path) -> HwmonMetrics 
             if let Some(index) = parse_sensor_index(&file_name, "temp", "_input") {
                 if let Some(celsius) = read_scaled_f32(&file_path, MILLI_SCALE) {
                     if celsius.is_finite() {
-                        let chip  = hwmon_chip_name(&path);
+                        let chip = hwmon_chip_name(&path);
                         let label = read_trimmed(&path.join(format!("temp{index}_label")))
                             .map(|l| prettify_identifier(&l))
                             .unwrap_or_else(|| format!("Temp {index}"));
-                        let max_celsius = read_scaled_f32(
-                            &path.join(format!("temp{index}_max")), MILLI_SCALE,
-                        );
-                        let critical_celsius = read_scaled_f32(
-                            &path.join(format!("temp{index}_crit")), MILLI_SCALE,
-                        );
+                        let max_celsius =
+                            read_scaled_f32(&path.join(format!("temp{index}_max")), MILLI_SCALE);
+                        let critical_celsius =
+                            read_scaled_f32(&path.join(format!("temp{index}_crit")), MILLI_SCALE);
                         metrics.temperatures.push(TemperatureSensor {
                             label,
                             chip,
@@ -192,11 +190,12 @@ pub(crate) fn collect_hwmon_metrics_from_path(base_path: &Path) -> HwmonMetrics 
         }
     }
 
-    metrics.temperatures.sort_by(|a, b| {
-        a.chip.cmp(&b.chip)
-            .then_with(|| a.label.cmp(&b.label))
-    });
-    metrics.fans.sort_by(|left, right| left.label.cmp(&right.label));
+    metrics
+        .temperatures
+        .sort_by(|a, b| a.chip.cmp(&b.chip).then_with(|| a.label.cmp(&b.label)));
+    metrics
+        .fans
+        .sort_by(|left, right| left.label.cmp(&right.label));
     metrics
         .voltages
         .sort_by(|left, right| left.label.cmp(&right.label));

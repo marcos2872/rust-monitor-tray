@@ -27,6 +27,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             print_help();
             Ok(())
         }
-        Some(other) => Err(format!("modo inválido: {other}. Use --help para ver as opções.").into()),
+        Some(other) => {
+            Err(format!("modo inválido: {other}. Use --help para ver as opções.").into())
+        }
     }
 }

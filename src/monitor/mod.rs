@@ -5,10 +5,10 @@ mod models;
 
 pub use collector::SystemMonitor;
 pub use models::{
-    CpuMetrics, CurrentSensor, DiskInfo, DiskMetrics, FanSensor, FastMetrics, GpuInfo,
-    GpuVendor, MemoryMetrics, NetworkInterface, NetworkMetrics, NetworkSpeedTestPhase,
-    NetworkSpeedTestState, NetworkSpeedTestStatus, PowerSensor, ProcessInfo, SensorMetrics,
-    SlowMetrics, SystemInfo, SystemMetrics, TemperatureSensor, VoltageSensor,
+    CpuMetrics, CurrentSensor, DiskInfo, DiskMetrics, FanSensor, FastMetrics, GpuInfo, GpuVendor,
+    MemoryMetrics, NetworkInterface, NetworkMetrics, NetworkSpeedTestPhase, NetworkSpeedTestState,
+    NetworkSpeedTestStatus, PowerSensor, ProcessInfo, SensorMetrics, SlowMetrics, SystemInfo,
+    SystemMetrics, TemperatureSensor, VoltageSensor,
 };
 
 #[cfg(test)]
@@ -38,8 +38,14 @@ mod tests {
 
     #[test]
     fn test_parse_sensor_index_extracts_numeric_suffix() {
-        assert_eq!(parse_sensor_index("fan1_input", "fan", "_input"), Some("1".to_string()));
-        assert_eq!(parse_sensor_index("power12_input", "power", "_input"), Some("12".to_string()));
+        assert_eq!(
+            parse_sensor_index("fan1_input", "fan", "_input"),
+            Some("1".to_string())
+        );
+        assert_eq!(
+            parse_sensor_index("power12_input", "power", "_input"),
+            Some("12".to_string())
+        );
         assert_eq!(parse_sensor_index("fanx_input", "fan", "_input"), None);
         assert_eq!(parse_sensor_index("fan1_label", "fan", "_input"), None);
     }
@@ -230,11 +236,18 @@ mod tests {
             .hottest_temperature_celsius
             .map(|value| value.is_finite())
             .unwrap_or(true));
-        assert!(sensors.fans.iter().all(|sensor| sensor.duty_percent
+        assert!(sensors.fans.iter().all(|sensor| sensor
+            .duty_percent
             .map(|value| value.is_finite() && (0.0..=100.0).contains(&value))
             .unwrap_or(true)));
-        assert!(sensors.voltages.iter().all(|sensor| sensor.volts.is_finite()));
-        assert!(sensors.currents.iter().all(|sensor| sensor.amps.is_finite()));
+        assert!(sensors
+            .voltages
+            .iter()
+            .all(|sensor| sensor.volts.is_finite()));
+        assert!(sensors
+            .currents
+            .iter()
+            .all(|sensor| sensor.amps.is_finite()));
         assert!(sensors.powers.iter().all(|sensor| sensor.watts.is_finite()));
     }
 
