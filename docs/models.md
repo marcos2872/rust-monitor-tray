@@ -2,11 +2,12 @@
 
 Todos os modelos são definidos em `src/monitor/models.rs` e derivam `Serialize` / `Deserialize` com `serde`.
 
-O backend hoje expõe três payloads JSON principais via DBus:
+O backend hoje expõe quatro payloads JSON principais via DBus:
 
 - `GetMetricsJson` → snapshot completo legado (`SystemMetrics`)
 - `FastMetricsJson` → snapshot quente (`FastMetrics`), servido do cache rápido do backend
 - `SlowMetricsJson` → snapshot lento (`SlowMetrics`)
+- `HistoryMetricsJson` → histórico temporal acumulado em memória (`HistoryMetrics`)
 
 ---
 
@@ -35,6 +36,42 @@ Payload lento usado para métricas mais caras ou menos voláteis.
 | `gpus` | `Vec<GpuInfo>` | Lista de GPUs detectadas |
 | `top_processes` | `Vec<ProcessInfo>` | Top 15 processos por uso de CPU |
 | `system_info` | `SystemInfo` | Informações do sistema operacional |
+
+---
+
+## HistoryMetrics
+
+Payload histórico usado pelos gráficos temporais do frontend.
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `history_duration_ms` | `u64` | Janela total mantida em memória |
+| `cpu_usage` | `HistorySeries` | Uso total de CPU (%) |
+| `memory_usage` | `HistorySeries` | Uso de RAM (%) |
+| `gpu_usage` | `HistorySeries` | Uso da GPU principal (%) |
+| `disk_read` | `HistorySeries` | Leitura agregada de disco (B/s) |
+| `disk_write` | `HistorySeries` | Escrita agregada de disco (B/s) |
+| `network_download` | `HistorySeries` | Download agregado (B/s) |
+| `network_upload` | `HistorySeries` | Upload agregado (B/s) |
+| `sensor_average_temperature` | `HistorySeries` | Temperatura média dos sensores (°C) |
+| `sensor_hottest_temperature` | `HistorySeries` | Temperatura mais alta (°C) |
+| `sensor_hottest_cpu_temperature` | `HistorySeries` | Pico de CPU (°C) |
+| `sensor_hottest_gpu_temperature` | `HistorySeries` | Pico de GPU (°C) |
+| `sensor_highest_fan_rpm` | `HistorySeries` | Maior RPM observado entre os fans |
+| `sensor_total_power_watts` | `HistorySeries` | Soma das leituras de potência (W) |
+| `system_load_1` | `HistorySeries` | Load average de 1 minuto |
+| `system_load_5` | `HistorySeries` | Load average de 5 minutos |
+| `system_load_15` | `HistorySeries` | Load average de 15 minutos |
+| `system_process_count` | `HistorySeries` | Quantidade de processos observada |
+
+### HistorySeries
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `buffer` | `Vec<f64>` | Buffer circular serializado |
+| `start` | `usize` | Índice lógico do primeiro elemento válido |
+| `count` | `usize` | Quantidade de amostras válidas |
+| `sample_interval_ms` | `u64` | Intervalo aproximado entre amostras |
 
 ---
 

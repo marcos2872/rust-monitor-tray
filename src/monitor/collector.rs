@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use sysinfo::{
     Components, DiskRefreshKind, Disks, Networks, ProcessRefreshKind, ProcessesToUpdate, System,
@@ -9,25 +9,29 @@ use sysinfo::{
 
 use super::hwmon::{collect_hwmon_metrics_from_path, HWMON_BASE_PATH};
 use super::{
-    CpuMetrics, DiskInfo, DiskMetrics, FastMetrics, GpuInfo, MemoryMetrics, NetworkInterface,
-    NetworkMetrics, ProcessInfo, SensorMetrics, SlowMetrics, SystemInfo, SystemMetrics,
-    TemperatureSensor,
+    CpuMetrics, DiskInfo, DiskMetrics, FastMetrics, GpuInfo, HistoryMetrics, HistorySeries,
+    MemoryMetrics, NetworkInterface, NetworkMetrics, ProcessInfo, SensorMetrics, SlowMetrics,
+    SystemInfo, SystemMetrics, TemperatureSensor,
 };
 
 const BYTES_TO_GB: f64 = 1024.0 * 1024.0 * 1024.0;
 const SECTOR_BYTES: f64 = 512.0;
 const TOP_PROCESSES: usize = 15;
+const HISTORY_DURATION_MS: u64 = 5 * 60 * 1000;
+const FAST_HISTORY_SAMPLE_INTERVAL_MS: u64 = 1000;
+const SENSOR_HISTORY_SAMPLE_INTERVAL_MS: u64 = 3000;
+const GPU_HISTORY_SAMPLE_INTERVAL_MS: u64 = 4500;
 /// Mede latência a cada N ciclos (~10s com sampleInterval de 1500ms).
 const LATENCY_INTERVAL_CYCLES: u32 = 7;
 /// Atualiza GPU com menor frequência para evitar scan de DRM e `nvidia-smi` em todo ciclo.
 const GPU_INTERVAL_CYCLES: u32 = 3;
-const GPU_MAX_AGE: std::time::Duration = std::time::Duration::from_millis(4500);
+const GPU_MAX_AGE: Duration = Duration::from_millis(GPU_HISTORY_SAMPLE_INTERVAL_MS);
 /// Atualiza sensores com menor frequência, sem perder responsividade percebida.
 const SENSOR_INTERVAL_CYCLES: u32 = 2;
-const SENSOR_MAX_AGE: std::time::Duration = std::time::Duration::from_millis(3000);
+const SENSOR_MAX_AGE: Duration = Duration::from_millis(SENSOR_HISTORY_SAMPLE_INTERVAL_MS);
 /// Atualiza processos com menor frequência, reduzindo custo de `/proc/<pid>`.
 const PROCESS_INTERVAL_CYCLES: u32 = 2;
-const PROCESS_MAX_AGE: std::time::Duration = std::time::Duration::from_millis(3000);
+const PROCESS_MAX_AGE: Duration = Duration::from_millis(SENSOR_HISTORY_SAMPLE_INTERVAL_MS);
 /// Frequência muda pouco; não precisa ser atualizada em todo tick.
 const CPU_FREQUENCY_INTERVAL_CYCLES: u32 = 10;
 
@@ -269,10 +273,63 @@ fn should_refresh_every(counter: &mut u32, interval_cycles: u32) -> bool {
     }
 }
 
-fn refresh_due_by_age(last_refresh: Option<Instant>, max_age: std::time::Duration) -> bool {
+fn refresh_due_by_age(last_refresh: Option<Instant>, max_age: Duration) -> bool {
     last_refresh
         .map(|instant| instant.elapsed() >= max_age)
         .unwrap_or(true)
+}
+
+fn history_capacity(sample_interval_ms: u64) -> usize {
+    let interval = sample_interval_ms.max(1);
+    (((HISTORY_DURATION_MS + interval - 1) / interval).max(2)) as usize
+}
+
+fn create_history_series(sample_interval_ms: u64) -> HistorySeries {
+    HistorySeries {
+        buffer: vec![0.0; history_capacity(sample_interval_ms)],
+        start: 0,
+        count: 0,
+        sample_interval_ms,
+    }
+}
+
+fn append_history_sample(series: &mut HistorySeries, value: f64) {
+    if series.buffer.is_empty() {
+        return;
+    }
+
+    let sanitized = if value.is_finite() { value } else { 0.0 };
+    if series.count < series.buffer.len() {
+        let write_index = (series.start + series.count) % series.buffer.len();
+        series.buffer[write_index] = sanitized;
+        series.count += 1;
+    } else {
+        series.buffer[series.start] = sanitized;
+        series.start = (series.start + 1) % series.buffer.len();
+    }
+}
+
+fn create_history_metrics() -> HistoryMetrics {
+    HistoryMetrics {
+        history_duration_ms: HISTORY_DURATION_MS,
+        cpu_usage: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+        memory_usage: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+        gpu_usage: create_history_series(GPU_HISTORY_SAMPLE_INTERVAL_MS),
+        disk_read: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+        disk_write: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+        network_download: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+        network_upload: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+        sensor_average_temperature: create_history_series(SENSOR_HISTORY_SAMPLE_INTERVAL_MS),
+        sensor_hottest_temperature: create_history_series(SENSOR_HISTORY_SAMPLE_INTERVAL_MS),
+        sensor_hottest_cpu_temperature: create_history_series(SENSOR_HISTORY_SAMPLE_INTERVAL_MS),
+        sensor_hottest_gpu_temperature: create_history_series(SENSOR_HISTORY_SAMPLE_INTERVAL_MS),
+        sensor_highest_fan_rpm: create_history_series(SENSOR_HISTORY_SAMPLE_INTERVAL_MS),
+        sensor_total_power_watts: create_history_series(SENSOR_HISTORY_SAMPLE_INTERVAL_MS),
+        system_load_1: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+        system_load_5: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+        system_load_15: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+        system_process_count: create_history_series(FAST_HISTORY_SAMPLE_INTERVAL_MS),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -290,6 +347,10 @@ pub struct SystemMonitor {
     pub(crate) cpu_steal_percent: f32,
     pub(crate) disk_read_rates: HashMap<String, u64>,
     pub(crate) disk_write_rates: HashMap<String, u64>,
+    pub(crate) network_download_rate: u64,
+    pub(crate) network_upload_rate: u64,
+    pub(crate) last_network_totals: Option<(u64, u64, Instant)>,
+    pub(crate) history: HistoryMetrics,
     pub(crate) cached_gpus: Vec<GpuInfo>,
     pub(crate) cached_sensors: Option<SensorMetrics>,
     pub(crate) cached_top_processes: Option<Vec<ProcessInfo>>,
@@ -311,6 +372,41 @@ impl Default for SystemMonitor {
     }
 }
 
+#[cfg(test)]
+impl SystemMonitor {
+    pub(crate) fn new_empty() -> Self {
+        Self {
+            system: System::new(),
+            disks: Disks::new_with_refreshed_list(),
+            networks: Networks::new_with_refreshed_list(),
+            components: Components::new_with_refreshed_list(),
+            cpu_user_percent: 0.0,
+            cpu_system_percent: 0.0,
+            cpu_idle_percent: 0.0,
+            cpu_steal_percent: 0.0,
+            disk_read_rates: HashMap::new(),
+            disk_write_rates: HashMap::new(),
+            network_download_rate: 0,
+            network_upload_rate: 0,
+            last_network_totals: None,
+            history: create_history_metrics(),
+            cached_gpus: vec![],
+            cached_sensors: None,
+            cached_top_processes: None,
+            cached_gateway_ip: None,
+            cached_gateway_latency_ms: None,
+            latency_cycle: 0,
+            gpu_cycle: 0,
+            sensor_cycle: 0,
+            process_cycle: 0,
+            cpu_frequency_cycle: 0,
+            last_gpu_refresh: None,
+            last_sensor_refresh: None,
+            last_process_refresh: None,
+        }
+    }
+}
+
 impl SystemMonitor {
     pub fn new() -> Self {
         let mut system = System::new_all();
@@ -326,6 +422,10 @@ impl SystemMonitor {
             cpu_steal_percent: 0.0,
             disk_read_rates: HashMap::new(),
             disk_write_rates: HashMap::new(),
+            network_download_rate: 0,
+            network_upload_rate: 0,
+            last_network_totals: None,
+            history: create_history_metrics(),
             cached_gpus: vec![],
             cached_sensors: None,
             cached_top_processes: None,
@@ -340,6 +440,102 @@ impl SystemMonitor {
             last_sensor_refresh: None,
             last_process_refresh: None,
         }
+    }
+
+    fn record_fast_history(&mut self) {
+        let cpu = self.get_cpu_metrics();
+        let memory = self.get_memory_metrics();
+        let disk = self.get_disk_metrics();
+        let load_average = System::load_average();
+
+        append_history_sample(
+            &mut self.history.cpu_usage,
+            cpu.usage_percent.clamp(0.0, 100.0) as f64,
+        );
+        append_history_sample(
+            &mut self.history.memory_usage,
+            memory.usage_percent.clamp(0.0, 100.0) as f64,
+        );
+        append_history_sample(
+            &mut self.history.disk_read,
+            disk.total_read_bytes_per_sec as f64,
+        );
+        append_history_sample(
+            &mut self.history.disk_write,
+            disk.total_write_bytes_per_sec as f64,
+        );
+        append_history_sample(
+            &mut self.history.network_download,
+            self.network_download_rate as f64,
+        );
+        append_history_sample(
+            &mut self.history.network_upload,
+            self.network_upload_rate as f64,
+        );
+        append_history_sample(&mut self.history.system_load_1, load_average.one.max(0.0));
+        append_history_sample(&mut self.history.system_load_5, load_average.five.max(0.0));
+        append_history_sample(
+            &mut self.history.system_load_15,
+            load_average.fifteen.max(0.0),
+        );
+        append_history_sample(
+            &mut self.history.system_process_count,
+            self.system.processes().len() as f64,
+        );
+    }
+
+    fn record_sensor_history(&mut self) {
+        let sensors = self.get_sensor_metrics();
+        let highest_fan_rpm = sensors
+            .fans
+            .iter()
+            .map(|sensor| sensor.rpm)
+            .max()
+            .unwrap_or(0);
+        let total_power_watts = sensors
+            .powers
+            .iter()
+            .map(|sensor| sensor.watts.max(0.0) as f64)
+            .sum::<f64>();
+
+        append_history_sample(
+            &mut self.history.sensor_average_temperature,
+            sensors.average_temperature_celsius.unwrap_or(0.0) as f64,
+        );
+        append_history_sample(
+            &mut self.history.sensor_hottest_temperature,
+            sensors.hottest_temperature_celsius.unwrap_or(0.0) as f64,
+        );
+        append_history_sample(
+            &mut self.history.sensor_hottest_cpu_temperature,
+            sensors.hottest_cpu_celsius.unwrap_or(0.0) as f64,
+        );
+        append_history_sample(
+            &mut self.history.sensor_hottest_gpu_temperature,
+            sensors.hottest_gpu_celsius.unwrap_or(0.0) as f64,
+        );
+        append_history_sample(
+            &mut self.history.sensor_highest_fan_rpm,
+            highest_fan_rpm as f64,
+        );
+        append_history_sample(
+            &mut self.history.sensor_total_power_watts,
+            total_power_watts,
+        );
+    }
+
+    fn record_gpu_history(&mut self) {
+        let usage_percent = self
+            .cached_gpus
+            .first()
+            .and_then(|gpu| gpu.usage_percent)
+            .unwrap_or(0.0)
+            .clamp(0.0, 100.0);
+        append_history_sample(&mut self.history.gpu_usage, usage_percent as f64);
+    }
+
+    pub fn get_history_metrics(&self) -> HistoryMetrics {
+        self.history.clone()
     }
 
     /// Atualiza apenas as métricas rápidas do ciclo quente.
@@ -373,6 +569,37 @@ impl SystemMonitor {
             .refresh_specifics(false, DiskRefreshKind::nothing().with_storage());
         self.networks.refresh(false);
 
+        let mut total_bytes_received = 0u64;
+        let mut total_bytes_transmitted = 0u64;
+        for (_, data) in &self.networks {
+            total_bytes_received += data.total_received();
+            total_bytes_transmitted += data.total_transmitted();
+        }
+        let network_sample_at = Instant::now();
+        if let Some((previous_received, previous_transmitted, previous_at)) =
+            self.last_network_totals
+        {
+            let elapsed_secs = network_sample_at
+                .duration_since(previous_at)
+                .as_secs_f64()
+                .max(0.001);
+            self.network_download_rate =
+                ((total_bytes_received.saturating_sub(previous_received)) as f64 / elapsed_secs)
+                    .round() as u64;
+            self.network_upload_rate =
+                ((total_bytes_transmitted.saturating_sub(previous_transmitted)) as f64
+                    / elapsed_secs)
+                    .round() as u64;
+        } else {
+            self.network_download_rate = 0;
+            self.network_upload_rate = 0;
+        }
+        self.last_network_totals = Some((
+            total_bytes_received,
+            total_bytes_transmitted,
+            network_sample_at,
+        ));
+
         if let (Some(b), Some(a)) = (cpu_stat_before, read_cpu_stat_raw()) {
             let (user, system, idle, steal) = compute_cpu_percents(&b, &a);
             self.cpu_user_percent = user;
@@ -391,6 +618,8 @@ impl SystemMonitor {
             self.cached_gateway_ip = gw_ip;
             self.cached_gateway_latency_ms = gw_lat;
         }
+
+        self.record_fast_history();
     }
 
     /// Atualiza métricas mais lentas, com opção de forçar refresh no caminho split do frontend.
@@ -428,11 +657,13 @@ impl SystemMonitor {
             self.components.refresh(false);
             self.cached_sensors = Some(self.collect_sensor_metrics());
             self.last_sensor_refresh = Some(Instant::now());
+            self.record_sensor_history();
         }
 
         if refresh_gpus {
             self.cached_gpus = super::gpu::collect_gpu_metrics().await;
             self.last_gpu_refresh = Some(Instant::now());
+            self.record_gpu_history();
         }
     }
 
@@ -825,5 +1056,40 @@ mod tests {
         after.insert("nvme0n1".to_string(), (500u64, 200u64));
         let (read_rates, _) = compute_disk_io_rates(&before, &after, 1.0);
         assert!(read_rates.is_empty());
+    }
+
+    #[test]
+    fn test_history_series_append_rotaciona_buffer_circular() {
+        let mut series = create_history_series(1000);
+        series.buffer = vec![0.0; 3];
+
+        append_history_sample(&mut series, 10.0);
+        append_history_sample(&mut series, 20.0);
+        append_history_sample(&mut series, 30.0);
+        append_history_sample(&mut series, 40.0);
+
+        assert_eq!(series.count, 3);
+        assert_eq!(series.start, 1);
+        assert_eq!(series.buffer, vec![40.0, 20.0, 30.0]);
+    }
+
+    #[test]
+    fn test_create_history_metrics_usa_janela_de_cinco_minutos() {
+        let history = create_history_metrics();
+
+        assert_eq!(history.history_duration_ms, HISTORY_DURATION_MS);
+        assert_eq!(
+            history.cpu_usage.sample_interval_ms,
+            FAST_HISTORY_SAMPLE_INTERVAL_MS
+        );
+        assert_eq!(
+            history.sensor_hottest_temperature.sample_interval_ms,
+            SENSOR_HISTORY_SAMPLE_INTERVAL_MS
+        );
+        assert_eq!(
+            history.gpu_usage.sample_interval_ms,
+            GPU_HISTORY_SAMPLE_INTERVAL_MS
+        );
+        assert!(history.cpu_usage.buffer.len() >= 2);
     }
 }

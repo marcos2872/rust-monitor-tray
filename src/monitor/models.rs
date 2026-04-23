@@ -232,6 +232,36 @@ pub struct SlowMetrics {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistorySeries {
+    pub buffer: Vec<f64>,
+    pub start: usize,
+    pub count: usize,
+    pub sample_interval_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HistoryMetrics {
+    pub history_duration_ms: u64,
+    pub cpu_usage: HistorySeries,
+    pub memory_usage: HistorySeries,
+    pub gpu_usage: HistorySeries,
+    pub disk_read: HistorySeries,
+    pub disk_write: HistorySeries,
+    pub network_download: HistorySeries,
+    pub network_upload: HistorySeries,
+    pub sensor_average_temperature: HistorySeries,
+    pub sensor_hottest_temperature: HistorySeries,
+    pub sensor_hottest_cpu_temperature: HistorySeries,
+    pub sensor_hottest_gpu_temperature: HistorySeries,
+    pub sensor_highest_fan_rpm: HistorySeries,
+    pub sensor_total_power_watts: HistorySeries,
+    pub system_load_1: HistorySeries,
+    pub system_load_5: HistorySeries,
+    pub system_load_15: HistorySeries,
+    pub system_process_count: HistorySeries,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
     pub cpu: CpuMetrics,
     pub memory: MemoryMetrics,

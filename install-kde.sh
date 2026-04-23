@@ -205,9 +205,10 @@ RestartSec=2
 WantedBy=default.target
 EOF
 
-echo "🚀 Ativando backend DBus do usuário..."
+echo "🚀 Ativando e reiniciando o backend DBus do usuário..."
 systemctl --user daemon-reload
-systemctl --user enable --now "${APP_NAME}.service"
+systemctl --user enable "${APP_NAME}.service"
+systemctl --user restart "${APP_NAME}.service"
 
 reload_plasma
 

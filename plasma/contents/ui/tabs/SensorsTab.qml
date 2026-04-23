@@ -8,6 +8,13 @@ ColumnLayout {
     id: root
 
     property var sensorMetrics: ({})
+    property var averageTemperatureHistory: ({})
+    property var hottestTemperatureHistory: ({})
+    property var hottestCpuTemperatureHistory: ({})
+    property var hottestGpuTemperatureHistory: ({})
+    property var highestFanRpmHistory: ({})
+    property var totalPowerHistory: ({})
+    property int historyDurationMs: 5 * 60 * 1000
 
     function chipCategory(chip) {
         var name = (chip || "").toLowerCase();
@@ -82,6 +89,42 @@ ColumnLayout {
         return Number(value).toFixed(1) + "°C";
     }
 
+    function historyWindowLabel() {
+        return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
+    }
+
+    function seriesLength(series) {
+        return series && series.count !== undefined ? series.count : 0;
+    }
+
+    function seriesValue(series, index) {
+        if (!series || !series.buffer || index < 0 || index >= root.seriesLength(series))
+            return 0;
+        var actualIndex = (series.start + index) % series.buffer.length;
+        return Number(series.buffer[actualIndex] || 0);
+    }
+
+    function seriesMaximum(series, fallbackValue) {
+        var maximum = fallbackValue || 1;
+        for (var i = 0; i < root.seriesLength(series); i += 1)
+            maximum = Math.max(maximum, root.seriesValue(series, i));
+        return maximum;
+    }
+
+    function highestFanRpmNow() {
+        var highest = 0;
+        for (var i = 0; i < root.cachedFans.length; i += 1)
+            highest = Math.max(highest, Number(root.cachedFans[i].rpm || 0));
+        return highest;
+    }
+
+    function totalPowerNow() {
+        var total = 0;
+        for (var i = 0; i < root.cachedPowers.length; i += 1)
+            total += Number(root.cachedPowers[i].watts || 0);
+        return total;
+    }
+
     function sensorState() {
         var hottest = root.sensorMetrics ? root.sensorMetrics.hottest_temperature_celsius : null;
         if (hottest === undefined || hottest === null || isNaN(hottest)) return "Sem dados";
@@ -145,6 +188,102 @@ ColumnLayout {
 
     MetricCard {
         Layout.fillWidth: true
+        title: "Temperature history"
+        subtitle: root.historyWindowLabel()
+
+        SectionHeader {
+            Layout.fillWidth: true
+            title: "Média"
+            subtitle: root.fmtTemp(root.sensorMetrics ? root.sensorMetrics.average_temperature_celsius : null)
+        }
+
+        HistoryChart {
+            Layout.fillWidth: true
+            series: root.averageTemperatureHistory
+            strokeColor: theme.successColor
+            maximumValue: Math.max(
+                root.seriesMaximum(root.averageTemperatureHistory, 1),
+                root.seriesMaximum(root.hottestTemperatureHistory, 1)
+            )
+            maxLabel: root.fmtTemp(Math.max(
+                root.seriesMaximum(root.averageTemperatureHistory, 1),
+                root.seriesMaximum(root.hottestTemperatureHistory, 1)
+            ))
+            minLabel: "0°C"
+        }
+
+        SectionHeader {
+            Layout.fillWidth: true
+            title: "Pico"
+            subtitle: root.fmtTemp(root.sensorMetrics ? root.sensorMetrics.hottest_temperature_celsius : null)
+        }
+
+        HistoryChart {
+            Layout.fillWidth: true
+            series: root.hottestTemperatureHistory
+            strokeColor: theme.dangerColor
+            maximumValue: Math.max(
+                root.seriesMaximum(root.averageTemperatureHistory, 1),
+                root.seriesMaximum(root.hottestTemperatureHistory, 1)
+            )
+            maxLabel: root.fmtTemp(Math.max(
+                root.seriesMaximum(root.averageTemperatureHistory, 1),
+                root.seriesMaximum(root.hottestTemperatureHistory, 1)
+            ))
+            minLabel: "0°C"
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "CPU/GPU history"
+        subtitle: root.historyWindowLabel()
+
+        SectionHeader {
+            Layout.fillWidth: true
+            title: "CPU"
+            subtitle: root.fmtTemp(root.sensorMetrics ? root.sensorMetrics.hottest_cpu_celsius : null)
+        }
+
+        HistoryChart {
+            Layout.fillWidth: true
+            series: root.hottestCpuTemperatureHistory
+            strokeColor: theme.cpuColor
+            maximumValue: Math.max(
+                root.seriesMaximum(root.hottestCpuTemperatureHistory, 1),
+                root.seriesMaximum(root.hottestGpuTemperatureHistory, 1)
+            )
+            maxLabel: root.fmtTemp(Math.max(
+                root.seriesMaximum(root.hottestCpuTemperatureHistory, 1),
+                root.seriesMaximum(root.hottestGpuTemperatureHistory, 1)
+            ))
+            minLabel: "0°C"
+        }
+
+        SectionHeader {
+            Layout.fillWidth: true
+            title: "GPU"
+            subtitle: root.fmtTemp(root.sensorMetrics ? root.sensorMetrics.hottest_gpu_celsius : null)
+        }
+
+        HistoryChart {
+            Layout.fillWidth: true
+            series: root.hottestGpuTemperatureHistory
+            strokeColor: theme.gpuColor
+            maximumValue: Math.max(
+                root.seriesMaximum(root.hottestCpuTemperatureHistory, 1),
+                root.seriesMaximum(root.hottestGpuTemperatureHistory, 1)
+            )
+            maxLabel: root.fmtTemp(Math.max(
+                root.seriesMaximum(root.hottestCpuTemperatureHistory, 1),
+                root.seriesMaximum(root.hottestGpuTemperatureHistory, 1)
+            ))
+            minLabel: "0°C"
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
         title: "Fans"
         subtitle: root.cachedFans.length > 0 ? "RPM e duty cycle quando disponível" : "Nenhum fan exposto em /sys/class/hwmon"
 
@@ -203,6 +342,42 @@ ColumnLayout {
             color: theme.mutedTextColor
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Electrical history"
+        subtitle: root.historyWindowLabel()
+
+        SectionHeader {
+            Layout.fillWidth: true
+            title: "Maior fan"
+            subtitle: root.cachedFans.length > 0 ? String(root.highestFanRpmNow()) + " RPM" : "sem fans"
+        }
+
+        HistoryChart {
+            Layout.fillWidth: true
+            series: root.highestFanRpmHistory
+            strokeColor: theme.cpuColor
+            maximumValue: Math.max(root.seriesMaximum(root.highestFanRpmHistory, 1), 1)
+            maxLabel: Math.round(root.seriesMaximum(root.highestFanRpmHistory, 1)) + " RPM"
+            minLabel: "0 RPM"
+        }
+
+        SectionHeader {
+            Layout.fillWidth: true
+            title: "Potência total"
+            subtitle: root.cachedPowers.length > 0 ? root.totalPowerNow().toFixed(1) + " W" : "sem potência"
+        }
+
+        HistoryChart {
+            Layout.fillWidth: true
+            series: root.totalPowerHistory
+            strokeColor: theme.dangerColor
+            maximumValue: Math.max(root.seriesMaximum(root.totalPowerHistory, 1), 1)
+            maxLabel: Number(root.seriesMaximum(root.totalPowerHistory, 1)).toFixed(1) + " W"
+            minLabel: "0 W"
         }
     }
 

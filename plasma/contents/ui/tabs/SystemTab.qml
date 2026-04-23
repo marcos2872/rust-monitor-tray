@@ -11,6 +11,31 @@ ColumnLayout {
     property var topProcesses: []
     property int uptime: 0
     property var loadAverage: [0, 0, 0]
+    property var loadHistory: ({})
+    property var processCountHistory: ({})
+    property int historyDurationMs: 5 * 60 * 1000
+
+    function historyWindowLabel() {
+        return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
+    }
+
+    function seriesLength(series) {
+        return series && series.count !== undefined ? series.count : 0;
+    }
+
+    function seriesValue(series, index) {
+        if (!series || !series.buffer || index < 0 || index >= root.seriesLength(series))
+            return 0;
+        var actualIndex = (series.start + index) % series.buffer.length;
+        return Number(series.buffer[actualIndex] || 0);
+    }
+
+    function seriesMaximum(series, fallbackValue) {
+        var maximum = fallbackValue || 1;
+        for (var i = 0; i < root.seriesLength(series); i += 1)
+            maximum = Math.max(maximum, root.seriesValue(series, i));
+        return maximum;
+    }
 
     Layout.fillWidth: true
     spacing: theme.spacingM
@@ -109,6 +134,36 @@ ColumnLayout {
                 value: root.loadAverage ? Number(root.loadAverage[2]).toFixed(2) : "0.00"
                 accentColor: theme.warningColor
             }
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Load history"
+        subtitle: root.historyWindowLabel()
+
+        HistoryChart {
+            Layout.fillWidth: true
+            series: root.loadHistory
+            strokeColor: theme.warningColor
+            maximumValue: Math.max(root.seriesMaximum(root.loadHistory, 1), 1)
+            maxLabel: Number(root.seriesMaximum(root.loadHistory, 1)).toFixed(2)
+            minLabel: "0.00"
+        }
+    }
+
+    MetricCard {
+        Layout.fillWidth: true
+        title: "Process count history"
+        subtitle: root.historyWindowLabel()
+
+        HistoryChart {
+            Layout.fillWidth: true
+            series: root.processCountHistory
+            strokeColor: theme.cpuColor
+            maximumValue: Math.max(root.seriesMaximum(root.processCountHistory, 1), 1)
+            maxLabel: Math.round(root.seriesMaximum(root.processCountHistory, 1)).toString()
+            minLabel: "0"
         }
     }
 

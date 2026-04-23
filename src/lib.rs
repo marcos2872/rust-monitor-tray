@@ -4,7 +4,9 @@ pub mod speedtest;
 
 use std::error::Error;
 
-use monitor::{FastMetrics, NetworkSpeedTestStatus, SlowMetrics, SystemMetrics, SystemMonitor};
+use monitor::{
+    FastMetrics, HistoryMetrics, NetworkSpeedTestStatus, SlowMetrics, SystemMetrics, SystemMonitor,
+};
 use speedtest::NetworkSpeedTestManager;
 
 pub const DBUS_SERVICE_NAME: &str = "com.monitortray.Backend";
@@ -24,6 +26,10 @@ pub async fn collect_fast_metrics(monitor: &mut SystemMonitor) -> FastMetrics {
 pub async fn collect_slow_metrics(monitor: &mut SystemMonitor) -> SlowMetrics {
     monitor.refresh_slow_metrics(false).await;
     monitor.get_slow_metrics()
+}
+
+pub fn collect_history_metrics(monitor: &SystemMonitor) -> HistoryMetrics {
+    monitor.get_history_metrics()
 }
 
 pub async fn collect_metrics_once() -> SystemMetrics {
@@ -47,6 +53,10 @@ pub async fn collect_slow_metrics_json(
     monitor: &mut SystemMonitor,
 ) -> Result<String, serde_json::Error> {
     serde_json::to_string(&collect_slow_metrics(monitor).await)
+}
+
+pub fn collect_history_metrics_json(monitor: &SystemMonitor) -> Result<String, serde_json::Error> {
+    serde_json::to_string(&collect_history_metrics(monitor))
 }
 
 pub async fn collect_metrics_once_json() -> Result<String, Box<dyn Error>> {

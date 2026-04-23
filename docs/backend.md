@@ -20,6 +20,7 @@ O backend é um binário Rust que coleta métricas do sistema Linux e as expõe 
 | `GetMetricsJson` | `String` (JSON) | Snapshot completo legado/compatibilidade |
 | `FastMetricsJson` | `String` (JSON) | Snapshot rápido: CPU, memória, disco, rede, uptime e load average |
 | `SlowMetricsJson` | `String` (JSON) | Snapshot lento: sensores, GPUs, top processos e `system_info` |
+| `HistoryMetricsJson` | `String` (JSON) | Histórico temporal acumulado em memória para os gráficos |
 | `StartNetworkSpeedTest` | `bool` | Inicia um teste manual de velocidade; retorna `false` se já houver um em andamento |
 | `CancelNetworkSpeedTest` | `bool` | Solicita cancelamento do teste em andamento |
 | `GetNetworkSpeedTestStatusJson` | `String` (JSON) | Retorna o estado atual do teste manual de velocidade |
@@ -39,7 +40,7 @@ gdbus call --session \
 
 ```mermaid
 flowchart TD
-    subgraph CacheQuente["Atualizador em background"]
+    subgraph Atualizador["Atualizador em background"]
         B["update_fast_metrics()"] --> C1["snapshot /proc/stat"]
         B --> C2["snapshot /proc/diskstats"]
         B --> C3["refresh_cpu_usage()"]
@@ -52,18 +53,25 @@ flowchart TD
         E4 --> E7["refresh disks/networks"]
         E7 --> F1["compute_cpu_percents()"]
         F1 --> F2["compute_disk_io_rates()"]
-        F2 --> F5{"refresh_latency?"}
+        F2 --> F3["compute network deltas"]
+        F3 --> F5{"refresh_latency?"}
         F5 -->|sim| F6["tokio::spawn(measure_gateway_latency())"]
-        F5 -->|não| G["get_fast_metrics()"]
+        F5 -->|não| G["record fast history"]
         F6 --> G
-        G --> H["serde_json::to_string(FastMetrics)"]
-        H --> I["atualiza fast_metrics_cache"]
+        G --> H["refresh_slow_metrics(false)"]
+        H --> I["record sensor/gpu history"]
+        I --> J1["serde_json::to_string(FastMetrics)"]
+        I --> J2["serde_json::to_string(HistoryMetrics)"]
+        J1 --> K1["atualiza fast_metrics_cache"]
+        J2 --> K2["atualiza history_metrics_cache"]
     end
 
-    A["Timer rápido do frontend"] -->|FastMetricsJson| J["lê fast_metrics_cache"]
+    A1["Timer rápido do frontend"] -->|FastMetricsJson| L1["lê fast_metrics_cache"]
+    A2["Timer histórico do frontend"] -->|HistoryMetricsJson| L2["lê history_metrics_cache"]
 ```
 
-O caminho lento roda em chamada separada (`SlowMetricsJson`) e atualiza apenas sensores, GPUs e processos.
+O caminho lento ainda pode ser consultado por `SlowMetricsJson`, mas o serviço também atualiza sensores,
+GPUs e processos em background para manter o histórico coerente mesmo com o popup fechado.
 
 ### Janela de medição
 
@@ -87,15 +95,16 @@ Frequências/TTL atuais:
 
 Isso reduz trabalho recorrente sem perder responsividade perceptível no widget.
 
-### Cache quente do caminho rápido
+### Caches quentes em memória
 
-No serviço DBus, `FastMetricsJson` é atendido por um cache em memória atualizado em background.
+No serviço DBus, `FastMetricsJson` e `HistoryMetricsJson` são atendidos por caches em memória atualizados em background.
 
 Na prática:
 
 - o custo da janela de medição (~`200 ms`) continua existindo para produzir o snapshot rápido;
-- esse custo saiu do caminho crítico da chamada DBus;
-- a chamada `FastMetricsJson` responde lendo `fast_metrics_cache`, o que reduz bastante a latência percebida pelo frontend.
+- esse custo saiu do caminho crítico das chamadas DBus mais frequentes;
+- `FastMetricsJson` responde lendo `fast_metrics_cache`;
+- `HistoryMetricsJson` responde lendo `history_metrics_cache`, preservando o histórico mesmo com a UI fechada.
 
 ---
 

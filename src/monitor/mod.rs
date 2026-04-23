@@ -6,9 +6,9 @@ mod models;
 pub use collector::SystemMonitor;
 pub use models::{
     CpuMetrics, CurrentSensor, DiskInfo, DiskMetrics, FanSensor, FastMetrics, GpuInfo, GpuVendor,
-    MemoryMetrics, NetworkInterface, NetworkMetrics, NetworkSpeedTestPhase, NetworkSpeedTestState,
-    NetworkSpeedTestStatus, PowerSensor, ProcessInfo, SensorMetrics, SlowMetrics, SystemInfo,
-    SystemMetrics, TemperatureSensor, VoltageSensor,
+    HistoryMetrics, HistorySeries, MemoryMetrics, NetworkInterface, NetworkMetrics,
+    NetworkSpeedTestPhase, NetworkSpeedTestState, NetworkSpeedTestStatus, PowerSensor, ProcessInfo,
+    SensorMetrics, SlowMetrics, SystemInfo, SystemMetrics, TemperatureSensor, VoltageSensor,
 };
 
 #[cfg(test)]
@@ -17,7 +17,7 @@ mod tests {
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use sysinfo::{Components, Disks, Networks, System};
+    use sysinfo::System;
 
     use super::collector::{bytes_to_gb, SystemMonitor};
     use super::hwmon::{collect_hwmon_metrics_from_path, parse_sensor_index};
@@ -98,31 +98,7 @@ mod tests {
 
     #[test]
     fn test_get_cpu_metrics_returns_zero_usage_when_system_has_no_cpu_snapshot() {
-        let monitor = SystemMonitor {
-            system: System::new(),
-            disks: Disks::new_with_refreshed_list(),
-            networks: Networks::new_with_refreshed_list(),
-            components: Components::new_with_refreshed_list(),
-            cpu_user_percent: 0.0,
-            cpu_system_percent: 0.0,
-            cpu_idle_percent: 0.0,
-            cpu_steal_percent: 0.0,
-            disk_read_rates: std::collections::HashMap::new(),
-            disk_write_rates: std::collections::HashMap::new(),
-            cached_gpus: vec![],
-            cached_sensors: None,
-            cached_top_processes: None,
-            cached_gateway_ip: None,
-            cached_gateway_latency_ms: None,
-            latency_cycle: 0,
-            gpu_cycle: 0,
-            sensor_cycle: 0,
-            process_cycle: 0,
-            cpu_frequency_cycle: 0,
-            last_gpu_refresh: None,
-            last_sensor_refresh: None,
-            last_process_refresh: None,
-        };
+        let monitor = SystemMonitor::new_empty();
 
         let cpu = monitor.get_cpu_metrics();
 
@@ -139,31 +115,7 @@ mod tests {
 
     #[test]
     fn test_get_memory_metrics_returns_zero_usage_when_total_memory_is_zero() {
-        let monitor = SystemMonitor {
-            system: System::new(),
-            disks: Disks::new_with_refreshed_list(),
-            networks: Networks::new_with_refreshed_list(),
-            components: Components::new_with_refreshed_list(),
-            cpu_user_percent: 0.0,
-            cpu_system_percent: 0.0,
-            cpu_idle_percent: 0.0,
-            cpu_steal_percent: 0.0,
-            disk_read_rates: std::collections::HashMap::new(),
-            disk_write_rates: std::collections::HashMap::new(),
-            cached_gpus: vec![],
-            cached_sensors: None,
-            cached_top_processes: None,
-            cached_gateway_ip: None,
-            cached_gateway_latency_ms: None,
-            latency_cycle: 0,
-            gpu_cycle: 0,
-            sensor_cycle: 0,
-            process_cycle: 0,
-            cpu_frequency_cycle: 0,
-            last_gpu_refresh: None,
-            last_sensor_refresh: None,
-            last_process_refresh: None,
-        };
+        let monitor = SystemMonitor::new_empty();
 
         let memory = monitor.get_memory_metrics();
 

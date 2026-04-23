@@ -11,6 +11,7 @@ ColumnLayout {
     property var diskWriteHistory: ({})
     property real diskReadRate: 0
     property real diskWriteRate: 0
+    property int historyDurationMs: 5 * 60 * 1000
 
     function seriesLength(series) {
         return series && series.count !== undefined ? series.count : 0;
@@ -32,6 +33,10 @@ ColumnLayout {
 
     function ioHistoryMaximum() {
         return Math.max(root.seriesMaximum(root.diskReadHistory), root.seriesMaximum(root.diskWriteHistory), 1);
+    }
+
+    function historyWindowLabel() {
+        return "Últimos " + Math.max(1, Math.round(historyDurationMs / 60000)) + " min";
     }
 
     function primaryDisk() {
@@ -102,7 +107,7 @@ ColumnLayout {
     MetricCard {
         Layout.fillWidth: true
         title: "I/O Activity"
-        subtitle: "Leitura e escrita agregadas"
+        subtitle: root.historyWindowLabel()
 
         RowLayout {
             Layout.fillWidth: true

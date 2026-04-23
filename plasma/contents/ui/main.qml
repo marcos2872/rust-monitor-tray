@@ -63,29 +63,34 @@ PlasmoidItem {
     readonly property int sampleIntervalMs: root.expanded ? expandedSampleIntervalMs : compactSampleIntervalMs
     readonly property int slowExpandedSampleIntervalMs: 4500
     readonly property int slowFetchDebounceMs: 250
-    readonly property int historyDurationMs: 5 * 60 * 1000
-    readonly property int historyLength: Math.max(2, Math.ceil(historyDurationMs / expandedSampleIntervalMs))
+    property int historyDurationMs: 5 * 60 * 1000
     readonly property string dbusService: "com.monitortray.Backend"
     readonly property string dbusPath: "/com/monitortray/Backend"
     readonly property string dbusInterface: "com.monitortray.Backend"
 
-    property var cpuHistory: createHistorySeries()
-    property var memoryHistory: createHistorySeries()
-    property var networkDownloadHistory: createHistorySeries()
-    property var networkUploadHistory: createHistorySeries()
+    property var cpuHistory: createEmptyHistorySeries()
+    property var memoryHistory: createEmptyHistorySeries()
+    property var networkDownloadHistory: createEmptyHistorySeries()
+    property var networkUploadHistory: createEmptyHistorySeries()
     property real networkDownloadRate: 0
     property real networkUploadRate: 0
-    property var diskReadHistory: createHistorySeries()
-    property var diskWriteHistory: createHistorySeries()
+    property var diskReadHistory: createEmptyHistorySeries()
+    property var diskWriteHistory: createEmptyHistorySeries()
     property real diskReadRate: 0
     property real diskWriteRate: 0
-    property var gpuHistory: createHistorySeries()
+    property var gpuHistory: createEmptyHistorySeries()
+    property var sensorAverageTemperatureHistory: createEmptyHistorySeries()
+    property var sensorHottestTemperatureHistory: createEmptyHistorySeries()
+    property var sensorHottestCpuTemperatureHistory: createEmptyHistorySeries()
+    property var sensorHottestGpuTemperatureHistory: createEmptyHistorySeries()
+    property var sensorHighestFanRpmHistory: createEmptyHistorySeries()
+    property var sensorTotalPowerHistory: createEmptyHistorySeries()
+    property var systemLoad1History: createEmptyHistorySeries()
+    property var systemProcessCountHistory: createEmptyHistorySeries()
 
-    property real lastNetworkTimestamp: 0
-    property real previousBytesReceived: -1
-    property real previousBytesTransmitted: -1
     property bool fastFetchInProgress: false
     property bool slowFetchInProgress: false
+    property bool historyFetchInProgress: false
     property bool preferSplitDbus: true
     property bool delayedSlowFetchForce: false
 
@@ -122,47 +127,37 @@ PlasmoidItem {
         diskReadRate: root.diskReadRate
         diskWriteRate: root.diskWriteRate
         gpuHistory: root.gpuHistory
+        sensorAverageTemperatureHistory: root.sensorAverageTemperatureHistory
+        sensorHottestTemperatureHistory: root.sensorHottestTemperatureHistory
+        sensorHottestCpuTemperatureHistory: root.sensorHottestCpuTemperatureHistory
+        sensorHottestGpuTemperatureHistory: root.sensorHottestGpuTemperatureHistory
+        sensorHighestFanRpmHistory: root.sensorHighestFanRpmHistory
+        sensorTotalPowerHistory: root.sensorTotalPowerHistory
+        systemLoad1History: root.systemLoad1History
+        systemProcessCountHistory: root.systemProcessCountHistory
         historyDurationMs: root.historyDurationMs
     }
 
-    function createHistorySeries() {
+    function createEmptyHistorySeries() {
         return {
-            buffer: new Array(root.historyLength),
+            buffer: [],
             start: 0,
-            count: 0
+            count: 0,
+            sample_interval_ms: 0
         };
     }
 
-    function normalizedUsage(value) {
-        if (value === undefined || value === null || isNaN(value))
+    function historyFromPayload(series) {
+        if (!series || !series.buffer || series.count === undefined)
+            return root.createEmptyHistorySeries();
+        return series;
+    }
+
+    function lastHistoryValue(series) {
+        if (!series || !series.buffer || series.count === undefined || series.count <= 0)
             return 0;
-        return Math.max(0, Math.min(100, Number(value)));
-    }
-
-    function appendHistory(series, value) {
-        var current = series && series.buffer ? series : root.createHistorySeries();
-        var next = {
-            buffer: current.buffer,
-            start: current.start || 0,
-            count: current.count || 0
-        };
-        var numericValue = Number(value);
-        var sanitizedValue = isNaN(numericValue) ? 0 : Math.max(0, numericValue);
-
-        if (next.count < root.historyLength) {
-            var writeIndex = (next.start + next.count) % root.historyLength;
-            next.buffer[writeIndex] = sanitizedValue;
-            next.count += 1;
-        } else {
-            next.buffer[next.start] = sanitizedValue;
-            next.start = (next.start + 1) % root.historyLength;
-        }
-
-        return next;
-    }
-
-    function appendPercentHistory(series, value) {
-        return appendHistory(series, normalizedUsage(value));
+        var lastIndex = (series.start + series.count - 1) % series.buffer.length;
+        return Number(series.buffer[lastIndex] || 0);
     }
 
     function extractJsonPayload(rawValue) {
@@ -229,6 +224,20 @@ PlasmoidItem {
         }
     }
 
+    function handleHistoryDbusSuccess(result) {
+        root.historyFetchInProgress = false;
+
+        var payload = extractJsonPayload(result);
+        if (!payload || payload.length === 0)
+            return;
+
+        try {
+            root.applyHistoryMetrics(payload);
+        } catch (error) {
+            root.errorMessage = "Falha ao processar JSON histórico do backend: " + error;
+        }
+    }
+
     function isUnknownMethodError(error) {
         var message = error && error.message ? error.message : "";
         return message.indexOf("Unknown method") >= 0;
@@ -264,43 +273,25 @@ PlasmoidItem {
             root.errorMessage = "Backend DBus indisponível. Rode: cargo run -- --dbus";
     }
 
+    function handleHistoryDbusError(error) {
+        root.historyFetchInProgress = false;
+
+        if (root.isUnknownMethodError(error))
+            return;
+
+        if (error && error.message)
+            root.errorMessage = error.message;
+    }
+
     function applyFastPayload(parsed) {
-        var now = Date.now();
-        var nextNetwork = parsed.network || root.networkMetrics;
-        var totalReceived = Number(nextNetwork.total_bytes_received || 0);
-        var totalTransmitted = Number(nextNetwork.total_bytes_transmitted || 0);
-        var downloadRate = 0;
-        var uploadRate = 0;
-
-        if (root.lastNetworkTimestamp > 0 && root.previousBytesReceived >= 0 && root.previousBytesTransmitted >= 0) {
-            var elapsedSeconds = Math.max(0.001, (now - root.lastNetworkTimestamp) / 1000.0);
-            downloadRate = Math.max(0, (totalReceived - root.previousBytesReceived) / elapsedSeconds);
-            uploadRate = Math.max(0, (totalTransmitted - root.previousBytesTransmitted) / elapsedSeconds);
-        }
-
         root.cpuMetrics = parsed.cpu || root.cpuMetrics;
         root.memoryMetrics = parsed.memory || root.memoryMetrics;
         root.diskMetrics = parsed.disk || root.diskMetrics;
-        root.networkMetrics = nextNetwork;
+        root.networkMetrics = parsed.network || root.networkMetrics;
         root.uptime = parsed.uptime || 0;
         root.loadAverage = parsed.load_average || root.loadAverage;
-
-        root.previousBytesReceived = totalReceived;
-        root.previousBytesTransmitted = totalTransmitted;
-        root.lastNetworkTimestamp = now;
-        root.networkDownloadRate = downloadRate;
-        root.networkUploadRate = uploadRate;
         root.diskReadRate = root.diskMetrics ? (root.diskMetrics.total_read_bytes_per_sec || 0) : 0;
         root.diskWriteRate = root.diskMetrics ? (root.diskMetrics.total_write_bytes_per_sec || 0) : 0;
-
-        if (root.expanded) {
-            root.cpuHistory = appendPercentHistory(root.cpuHistory, root.cpuMetrics ? root.cpuMetrics.usage_percent : 0);
-            root.memoryHistory = appendPercentHistory(root.memoryHistory, root.memoryMetrics ? root.memoryMetrics.usage_percent : 0);
-            root.networkDownloadHistory = appendHistory(root.networkDownloadHistory, downloadRate);
-            root.networkUploadHistory = appendHistory(root.networkUploadHistory, uploadRate);
-            root.diskReadHistory = appendHistory(root.diskReadHistory, root.diskReadRate);
-            root.diskWriteHistory = appendHistory(root.diskWriteHistory, root.diskWriteRate);
-        }
     }
 
     function applySlowPayload(parsed) {
@@ -308,11 +299,6 @@ PlasmoidItem {
         root.systemInfoMetrics = parsed.system_info || root.systemInfoMetrics;
         root.gpuMetrics = parsed.gpus || [];
         root.topProcesses = parsed.top_processes || [];
-
-        if (root.expanded) {
-            var primaryGpu = root.gpuMetrics && root.gpuMetrics.length > 0 ? root.gpuMetrics[0] : null;
-            root.gpuHistory = appendPercentHistory(root.gpuHistory, primaryGpu ? (primaryGpu.usage_percent || 0) : 0);
-        }
     }
 
     function applyFastMetrics(jsonText) {
@@ -322,6 +308,32 @@ PlasmoidItem {
 
     function applySlowMetrics(jsonText) {
         root.applySlowPayload(JSON.parse(jsonText));
+        root.errorMessage = "";
+    }
+
+    function applyHistoryPayload(parsed) {
+        root.historyDurationMs = parsed.history_duration_ms || root.historyDurationMs;
+        root.cpuHistory = root.historyFromPayload(parsed.cpu_usage);
+        root.memoryHistory = root.historyFromPayload(parsed.memory_usage);
+        root.gpuHistory = root.historyFromPayload(parsed.gpu_usage);
+        root.diskReadHistory = root.historyFromPayload(parsed.disk_read);
+        root.diskWriteHistory = root.historyFromPayload(parsed.disk_write);
+        root.networkDownloadHistory = root.historyFromPayload(parsed.network_download);
+        root.networkUploadHistory = root.historyFromPayload(parsed.network_upload);
+        root.sensorAverageTemperatureHistory = root.historyFromPayload(parsed.sensor_average_temperature);
+        root.sensorHottestTemperatureHistory = root.historyFromPayload(parsed.sensor_hottest_temperature);
+        root.sensorHottestCpuTemperatureHistory = root.historyFromPayload(parsed.sensor_hottest_cpu_temperature);
+        root.sensorHottestGpuTemperatureHistory = root.historyFromPayload(parsed.sensor_hottest_gpu_temperature);
+        root.sensorHighestFanRpmHistory = root.historyFromPayload(parsed.sensor_highest_fan_rpm);
+        root.sensorTotalPowerHistory = root.historyFromPayload(parsed.sensor_total_power_watts);
+        root.systemLoad1History = root.historyFromPayload(parsed.system_load_1);
+        root.systemProcessCountHistory = root.historyFromPayload(parsed.system_process_count);
+        root.networkDownloadRate = root.lastHistoryValue(root.networkDownloadHistory);
+        root.networkUploadRate = root.lastHistoryValue(root.networkUploadHistory);
+    }
+
+    function applyHistoryMetrics(jsonText) {
+        root.applyHistoryPayload(JSON.parse(jsonText));
         root.errorMessage = "";
     }
 
@@ -374,6 +386,26 @@ PlasmoidItem {
             member: "SlowMetricsJson",
             arguments: []
         }, root.handleSlowDbusSuccess, root.handleSlowDbusError);
+    }
+
+    function fetchHistoryMetrics(force) {
+        if (!root.expanded && !force)
+            return;
+
+        if (root.historyFetchInProgress)
+            return;
+
+        if (!backendWatcher.registered)
+            return;
+
+        root.historyFetchInProgress = true;
+        DBus.SessionBus.asyncCall({
+            service: root.dbusService,
+            path: root.dbusPath,
+            iface: root.dbusInterface,
+            member: "HistoryMetricsJson",
+            arguments: []
+        }, root.handleHistoryDbusSuccess, root.handleHistoryDbusError);
     }
 
     function scheduleSlowMetrics(force) {
@@ -482,6 +514,7 @@ PlasmoidItem {
     onExpandedChanged: {
         if (root.expanded) {
             root.fetchFastMetrics();
+            root.fetchHistoryMetrics(true);
             root.scheduleSlowMetrics(true);
             root.fetchNetworkSpeedTestStatus();
         } else {
@@ -500,8 +533,10 @@ PlasmoidItem {
             } else if (registered && (root.expanded || !root.cpuMetrics || root.cpuMetrics.name === "")) {
                 root.fetchFastMetrics();
                 root.fetchNetworkSpeedTestStatus();
-                if (root.expanded)
+                if (root.expanded) {
+                    root.fetchHistoryMetrics(true);
                     root.scheduleSlowMetrics(true);
+                }
             }
         }
     }
@@ -528,6 +563,14 @@ PlasmoidItem {
         running: root.expanded
         triggeredOnStart: false
         onTriggered: root.fetchSlowMetrics(false)
+    }
+
+    Timer {
+        interval: root.expandedSampleIntervalMs
+        repeat: true
+        running: root.expanded
+        triggeredOnStart: false
+        onTriggered: root.fetchHistoryMetrics(false)
     }
 
     Timer {

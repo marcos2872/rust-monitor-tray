@@ -47,6 +47,14 @@ Item {
     property real diskReadRate: 0
     property real diskWriteRate: 0
     property var gpuHistory: ({})
+    property var sensorAverageTemperatureHistory: ({})
+    property var sensorHottestTemperatureHistory: ({})
+    property var sensorHottestCpuTemperatureHistory: ({})
+    property var sensorHottestGpuTemperatureHistory: ({})
+    property var sensorHighestFanRpmHistory: ({})
+    property var sensorTotalPowerHistory: ({})
+    property var systemLoad1History: ({})
+    property var systemProcessCountHistory: ({})
     property int currentTab: 0
 
     function isLoading() {
@@ -186,6 +194,7 @@ Item {
             diskWriteHistory: root.diskWriteHistory
             diskReadRate: root.diskReadRate
             diskWriteRate: root.diskWriteRate
+            historyDurationMs: root.historyDurationMs
         }
     }
 
@@ -211,6 +220,13 @@ Item {
         SensorsTab {
             width: scrollView.availableWidth
             sensorMetrics: root.sensorMetrics
+            averageTemperatureHistory: root.sensorAverageTemperatureHistory
+            hottestTemperatureHistory: root.sensorHottestTemperatureHistory
+            hottestCpuTemperatureHistory: root.sensorHottestCpuTemperatureHistory
+            hottestGpuTemperatureHistory: root.sensorHottestGpuTemperatureHistory
+            highestFanRpmHistory: root.sensorHighestFanRpmHistory
+            totalPowerHistory: root.sensorTotalPowerHistory
+            historyDurationMs: root.historyDurationMs
         }
     }
 
@@ -222,6 +238,9 @@ Item {
             topProcesses: root.topProcesses
             uptime: root.uptime
             loadAverage: root.loadAverage
+            loadHistory: root.systemLoad1History
+            processCountHistory: root.systemProcessCountHistory
+            historyDurationMs: root.historyDurationMs
         }
     }
 

@@ -99,30 +99,28 @@ Isso reduz invalidação global de bindings e evita repassar um snapshot monolí
 
 ### Histórico acumulado
 
-| Propriedade | Conteúdo | Calculado em |
+O frontend não constrói mais o histórico como fonte primária. Em vez disso, ele consulta `HistoryMetricsJson`
+quando o popup está expandido e apenas renderiza as séries acumuladas pelo backend.
+
+| Propriedade | Conteúdo | Origem |
 |---|---|---|
-| `cpuHistory` | `cpu.usage_percent` | `applyFastPayload()` |
-| `memoryHistory` | `memory.usage_percent` | `applyFastPayload()` |
-| `networkDownloadRate` | delta local de bytes recebidos | `applyFastPayload()` |
-| `networkUploadRate` | delta local de bytes enviados | `applyFastPayload()` |
-| `networkDownloadHistory` | histórico de download | `applyFastPayload()` |
-| `networkUploadHistory` | histórico de upload | `applyFastPayload()` |
-| `diskReadRate` | `disk.total_read_bytes_per_sec` | `applyFastPayload()` |
-| `diskWriteRate` | `disk.total_write_bytes_per_sec` | `applyFastPayload()` |
-| `diskReadHistory` | histórico de leitura de disco | `applyFastPayload()` |
-| `diskWriteHistory` | histórico de escrita de disco | `applyFastPayload()` |
-| `gpuHistory` | `gpus[0].usage_percent` | `applySlowPayload()` |
+| `cpuHistory` | `cpu_usage` | `applyHistoryPayload()` |
+| `memoryHistory` | `memory_usage` | `applyHistoryPayload()` |
+| `networkDownloadHistory` | `network_download` | `applyHistoryPayload()` |
+| `networkUploadHistory` | `network_upload` | `applyHistoryPayload()` |
+| `diskReadHistory` | `disk_read` | `applyHistoryPayload()` |
+| `diskWriteHistory` | `disk_write` | `applyHistoryPayload()` |
+| `gpuHistory` | `gpu_usage` | `applyHistoryPayload()` |
+| `sensorAverageTemperatureHistory` | `sensor_average_temperature` | `applyHistoryPayload()` |
+| `sensorHottestTemperatureHistory` | `sensor_hottest_temperature` | `applyHistoryPayload()` |
+| `sensorHottestCpuTemperatureHistory` | `sensor_hottest_cpu_temperature` | `applyHistoryPayload()` |
+| `sensorHottestGpuTemperatureHistory` | `sensor_hottest_gpu_temperature` | `applyHistoryPayload()` |
+| `sensorHighestFanRpmHistory` | `sensor_highest_fan_rpm` | `applyHistoryPayload()` |
+| `sensorTotalPowerHistory` | `sensor_total_power_watts` | `applyHistoryPayload()` |
+| `systemLoad1History` | `system_load_1` | `applyHistoryPayload()` |
+| `systemProcessCountHistory` | `system_process_count` | `applyHistoryPayload()` |
 
-O histórico é circular e usa:
-
-- `expandedSampleIntervalMs = 1500`
-- `compactSampleIntervalMs = 3000`
-- `historyDurationMs = 5 * 60 * 1000`
-- `historyLength = ceil(historyDurationMs / expandedSampleIntervalMs)`
-
-Para reduzir trabalho em segundo plano, os históricos detalhados só são atualizados quando o popup está **expandido**.
-
-Além disso, os históricos passaram a usar um buffer circular lógico, evitando `slice(0)` + `shift()` em cada amostra.
+A janela padrão continua em `5 min`, mas agora a retenção fica no backend Rust enquanto o serviço DBus estiver vivo.
 
 ---
 
@@ -135,8 +133,8 @@ Além disso, os históricos passaram a usar um buffer circular lógico, evitando
 | 2 | GPU | `GpuTab.qml` | `gpus`, `gpuHistory`, `historyDurationMs` |
 | 3 | Disk | `DiskTab.qml` | `diskMetrics`, `diskReadHistory`, `diskWriteHistory`, `diskReadRate`, `diskWriteRate` |
 | 4 | Network | `NetworkTab.qml` | `networkMetrics`, `networkSpeedTestStatus`, `downloadHistory`, `uploadHistory`, `downloadRate`, `uploadRate`, `historyDurationMs` |
-| 5 | Sensors | `SensorsTab.qml` | `sensorMetrics` |
-| 6 | System | `SystemTab.qml` | `systemInfo`, `topProcesses`, `uptime`, `loadAverage` |
+| 5 | Sensors | `SensorsTab.qml` | `sensorMetrics`, `averageTemperatureHistory`, `hottestTemperatureHistory`, `historyDurationMs` |
+| 6 | System | `SystemTab.qml` | `systemInfo`, `topProcesses`, `uptime`, `loadAverage`, `loadHistory`, `processCountHistory` |
 
 ### CPU — `CpuTab.qml`
 
